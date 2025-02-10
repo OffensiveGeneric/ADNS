@@ -29,3 +29,6 @@ Challenges:
 Handling imbalanced datasets (since normal traffic is much more frequent than attacks).
 Reducing false positives.
 Optimizing for real-time detection.
+
+![Blank diagram](https://github.com/user-attachments/assets/c2712032-cc1a-4121-ada8-1fbf973dab76)
+
