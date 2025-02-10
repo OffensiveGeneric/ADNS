@@ -1,6 +1,8 @@
 # ADNS
 Tyler Kleint - Research 
+
 Vadzim Ruzha - System Savvy
+
 Mazen Zarrouk - Project Manager
 
 
