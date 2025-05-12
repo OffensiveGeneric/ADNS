@@ -13,7 +13,9 @@ df = pd.read_csv("traffic_log.csv", header=None, names=[
 df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
 
 # Assign hour bucket
-df['hour'] = df['timestamp'].dt.floor('1H')
+df['minute'] = df['timestamp'].dt.floor('1T')  # 1 minute bins
+
+
 
 # Normalize columns
 df['length'] = pd.to_numeric(df['length'], errors='coerce')
@@ -29,7 +31,8 @@ df['dst_port'] = df['tcp_dst'].fillna(df['udp_dst'])
 df['direction'] = np.where(df['src_ip'].str.startswith("192.168"), "out", "in")
 
 # Aggregation
-agg = df.groupby('hour').agg(
+agg = df.groupby('minute').agg(
+
     n_flows=('src_ip', 'nunique'),
     n_packets=('src_ip', 'count'),
     n_bytes=('length', 'sum'),
