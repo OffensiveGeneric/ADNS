@@ -3,3 +3,103 @@
 ################################################################################
 
 /.vs
+#============================================================,
+#MACHINE LEARNING PROJECT .GITIGNORE,
+#============================================================,
+#--- OS / IDE junk ------------------------------------------,
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+
+#--- Python cache & build files ------------------------------,
+pycache/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+
+#--- Jupyter Notebook checkpoints ----------------------------,
+.ipynb_checkpoints/
+
+#--- Virtual environments ------------------------------------,
+env/
+venv/
+ENV/
+.venv/
+env.bak/
+
+#--- Logs & debug output -------------------------------------,
+*.log
+*.out
+*.err
+logs/
+nohup.out
+
+#--- Large data and model files -------------------------------,
+(these will often exceed GitHub's 100MB limit),
+*.csv
+*.tsv
+*.dat
+*.npz
+*.npy
+*.h5
+*.hdf5
+*.model
+*.pkl
+*.joblib
+*.ckpt
+*.pt
+*.pth
+*.onnx
+
+#--- Archives & binaries -------------------------------------,
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+*.exe
+*.dll
+*.bin
+*.iso
+
+#--- Temporary files ------------------------------------------,
+tmp/
+temp/
+*.tmp
+*.bak
+
+#--- Outputs / reports / figures ------------------------------,
+outputs/
+results/
+plots/
+figures/
+reports/
+.pdf
+
+#--- Secrets & environment files ------------------------------,
+.env
+.env.
+secrets/
+*.key
+*.pem
+*.crt
+
+#--- VS Code / PyCharm project settings -----------------------,
+*.code-workspace
+.idea/
+.vscode/
+
+#
+--- Miscellaneous --------------------------------------------,
+*.sqlite3
+*.db
+*.rdb
+*.lock
