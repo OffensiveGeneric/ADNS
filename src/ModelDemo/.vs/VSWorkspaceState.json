@@ -2,12 +2,9 @@
   "ExpandedNodes": [
     "",
     "\\ModelDemo",
-    "\\ModelDemo\\data",
-    "\\ModelDemo\\preprocess",
-    "\\ModelDemo\\repr_learning",
-    "\\outputs",
-    "\\outputs\\preprocessed"
+    "\\ModelDemo\\meta",
+    "\\ModelDemo\\repr_learning"
   ],
-  "SelectedNode": "\\ModelDemo\\repr_learning\\ae_mlpreg.py",
+  "SelectedNode": "\\ModelDemo\\meta\\meta_train.py",
   "PreviewInSolutionExplorer": false
 }
