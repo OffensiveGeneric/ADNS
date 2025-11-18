@@ -1,9 +1,12 @@
 import os
+import random
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+
+from model_runner import DetectionEngine
 
 app = Flask(__name__)
 CORS(app)
@@ -58,6 +61,81 @@ def init_db() -> None:
         db.create_all()
 
 
+simulation_detector = DetectionEngine()
+
+SIMULATION_TYPES = {
+    "botnet_flood": {
+        "label": "IoT botnet flood",
+        "default_count": 60,
+    },
+    "data_exfiltration": {
+        "label": "Data exfiltration burst",
+        "default_count": 30,
+    },
+    "port_scan": {
+        "label": "Stealthy port scan",
+        "default_count": 90,
+    },
+}
+
+
+def _pattern_ip(pattern: str, rng: random.Random) -> str:
+    parts = pattern.split(".")
+    octets = []
+    for part in parts:
+        if part in {"x", "*"}:
+            octets.append(str(rng.randint(1, 254)))
+        elif part == "y":
+            octets.append(str(rng.randint(0, 99)))
+        else:
+            octets.append(part)
+    while len(octets) < 4:
+        octets.append(str(rng.randint(1, 254)))
+    return ".".join(octets[:4])
+
+
+def generate_attack_flows(kind: str, count: int) -> list[Flow]:
+    rng = random.Random()
+    now = datetime.now(timezone.utc)
+    flows: list[Flow] = []
+
+    def _add_flow(ts_offset: float, src: str, dst: str, proto: str, byte_count: int) -> None:
+        flows.append(
+            Flow(
+                timestamp=now - timedelta(seconds=ts_offset),
+                src_ip=src,
+                dst_ip=dst,
+                proto=normalize_protocol(proto),
+                bytes=max(0, int(byte_count)),
+            )
+        )
+
+    for i in range(count):
+        if kind == "botnet_flood":
+            dst = rng.choice(["198.51.100.42", "198.51.100.47", "203.0.113.10"])
+            src = _pattern_ip("10.x.x.x", rng)
+            bytes_val = rng.randint(60_000, 250_000)
+            offset = rng.uniform(0, 25)
+            _add_flow(offset, src, dst, "TCP", bytes_val)
+        elif kind == "data_exfiltration":
+            src = rng.choice(["10.0.5.33", "10.0.5.34"])
+            dst = _pattern_ip("203.0.113.x", rng)
+            bytes_val = rng.randint(120_000, 320_000)
+            offset = rng.uniform(0, 40)
+            _add_flow(offset, src, dst, "TCP", bytes_val)
+        elif kind == "port_scan":
+            src = rng.choice(["172.16.8.4", "172.16.8.5"])
+            dst = f"192.168.{rng.randint(1, 10)}.{(i % 200) + 1}"
+            proto = rng.choice(["UDP", "TCP"])
+            bytes_val = rng.randint(800, 5000)
+            offset = rng.uniform(0, 60)
+            _add_flow(offset, src, dst, proto, bytes_val)
+        else:
+            raise ValueError(f"unsupported attack type '{kind}'")
+
+    return flows
+
+
 def parse_timestamp(value) -> datetime:
     if isinstance(value, (int, float)):
         return datetime.fromtimestamp(float(value), tz=timezone.utc)
@@ -90,6 +168,11 @@ def normalize_protocol(value) -> str:
 
 
 def flow_to_dict(flow: Flow) -> dict:
+    latest_label = None
+    pred = flow.predictions.order_by(Prediction.created_at.desc()).first()
+    if pred:
+        latest_label = pred.label
+
     return {
         "id": flow.id,
         "ts": flow.timestamp.isoformat(),
@@ -98,6 +181,7 @@ def flow_to_dict(flow: Flow) -> dict:
         "proto": normalize_protocol(flow.proto),
         "bytes": flow.bytes,
         "score": latest_prediction_score(flow),
+        "label": latest_label,
     }
 
 
@@ -208,6 +292,55 @@ def ingest():
         app.logger.info("purged %d old flow(s)", purged)
 
     return jsonify({"status": "ok", "ingested": created, "purged": purged})
+
+
+@app.post("/simulate")
+def simulate_attack():
+    payload = request.get_json(silent=True) or {}
+    attack_type = str(payload.get("type") or "botnet_flood").strip()
+    profile = SIMULATION_TYPES.get(attack_type)
+    if not profile:
+        return jsonify({"error": f"unknown attack type '{attack_type}'"}), 400
+
+    requested_count = payload.get("count")
+    default_count = profile["default_count"]
+    try:
+        count = int(requested_count) if requested_count is not None else default_count
+    except (TypeError, ValueError):
+        return jsonify({"error": "count must be an integer"}), 400
+    count = max(5, min(count, 400))
+
+    flows = generate_attack_flows(attack_type, count)
+    for flow in flows:
+        db.session.add(flow)
+    db.session.flush()
+
+    scores: list[float] = []
+    for flow in flows:
+        score, label = simulation_detector.predict(db.session, flow)
+        scores.append(score)
+        db.session.add(
+            Prediction(
+                flow_id=flow.id,
+                score=score,
+                label=label,
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+
+    db.session.commit()
+    purged = enforce_flow_retention()
+
+    return jsonify(
+        {
+            "status": "ok",
+            "type": attack_type,
+            "label": profile["label"],
+            "generated": len(flows),
+            "max_score": round(max(scores) if scores else 0.0, 3),
+            "purged": purged,
+        }
+    )
 
 
 # ---------------------------------------------------------------

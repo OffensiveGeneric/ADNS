@@ -13,7 +13,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app import Flow, Prediction, db
-from scoring import FlowScorer
+from model_runner import DetectionEngine
 
 DB_URL = os.environ.get("ADNS_DATABASE_URL", "postgresql://adns:adns_password@127.0.0.1/adns")
 POLL_INTERVAL = float(os.environ.get("ADNS_WORKER_POLL_SECONDS", "5"))
@@ -27,7 +27,7 @@ def configure_logging() -> None:
     )
 
 
-scorer = FlowScorer()
+detector = DetectionEngine()
 
 
 def fetch_unscored_flows(session: Session, limit: int) -> list[Flow]:
@@ -47,7 +47,7 @@ def process_batch(session: Session) -> int:
         return 0
 
     for flow in flows:
-        score, label = scorer.predict(session, flow)
+        score, label = detector.predict(session, flow)
         prediction = Prediction(
             flow_id=flow.id,
             score=score,
@@ -64,6 +64,7 @@ def main() -> None:
     configure_logging()
     engine = create_engine(DB_URL)
     logging.info("worker connected to %s", DB_URL)
+    logging.info("using %s detection engine", detector.mode)
 
     while True:
         with Session(engine) as session:

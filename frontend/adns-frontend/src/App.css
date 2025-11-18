@@ -62,7 +62,9 @@ body {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
   gap: 18px;
 }
 
@@ -75,6 +77,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
+  min-width: 0;
 }
 
 .metric-title {
@@ -98,6 +102,8 @@ body {
   padding: 20px 24px 28px;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
 }
 
 .chart-panel {
@@ -108,6 +114,12 @@ body {
   margin: 0 0 14px;
   font-size: 1.1rem;
   color: #14213d;
+}
+
+.panel-heading p {
+  margin: 0;
+  color: #6a7893;
+  font-size: 0.9rem;
 }
 
 .empty-state {
@@ -189,6 +201,129 @@ body {
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.simulation-panel {
+  gap: 12px;
+}
+
+.timeline-panel {
+  gap: 8px;
+}
+
+.donut-panel {
+  gap: 8px;
+}
+
+.donut-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.donut-legend {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.donut-legend li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.donut-legend .dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.simulate-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.simulate-btn {
+  border: none;
+  border-radius: 14px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  min-width: 180px;
+  box-shadow: 0 10px 24px rgba(30, 64, 175, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+}
+
+.simulate-btn small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.simulate-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(30, 64, 175, 0.45);
+}
+
+.simulate-btn.is-active {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+}
+
+.simulate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.simulate-status {
+  margin: 8px 0 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+  width: 100%;
+  max-width: 640px;
+  word-break: break-word;
+}
+
+.simulate-status.info {
+  color: #1d4ed8;
+}
+
+.simulate-status.success {
+  color: #059669;
+}
+
+.simulate-status.error {
+  color: #dc2626;
+}
+
+.threat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.threat-badge .icon {
+  font-size: 0.85rem;
 }
 
 @media (max-width: 768px) {
