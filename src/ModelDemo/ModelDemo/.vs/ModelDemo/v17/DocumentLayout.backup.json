@@ -1,0 +1,194 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\meta\\meta_train.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:meta\\meta_train.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\compare\\metrics_raw.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:outputs\\compare\\metrics_raw.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\preprocess\\merge_and_clean.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:preprocess\\merge_and_clean.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\compare\\comparison.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:outputs\\compare\\comparison.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\compare\\metrics_prep.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:outputs\\compare\\metrics_prep.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\Baseline Experiment\\outputs\\preprocessed\\xgb_baseline_metrics.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Baseline Experiment\\outputs\\preprocessed\\xgb_baseline_metrics.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\preprocessed\\meta_features.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:outputs\\preprocessed\\meta_features.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\preprocessed\\meta_metrics.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:outputs\\preprocessed\\meta_metrics.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\repr_learning\\ae_mlpreg.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:repr_learning\\ae_mlpreg.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\detectors\\run_detectors.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:detectors\\run_detectors.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 5,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "metrics_raw.json",
+              "DocumentMoniker": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\compare\\metrics_raw.json",
+              "RelativeDocumentMoniker": "outputs\\compare\\metrics_raw.json",
+              "ToolTip": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\compare\\metrics_raw.json",
+              "RelativeToolTip": "outputs\\compare\\metrics_raw.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAADAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-10-23T21:28:28.965Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "xgb_baseline_metrics.json",
+              "DocumentMoniker": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\Baseline Experiment\\outputs\\preprocessed\\xgb_baseline_metrics.json",
+              "RelativeDocumentMoniker": "Baseline Experiment\\outputs\\preprocessed\\xgb_baseline_metrics.json",
+              "ToolTip": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\Baseline Experiment\\outputs\\preprocessed\\xgb_baseline_metrics.json",
+              "RelativeToolTip": "Baseline Experiment\\outputs\\preprocessed\\xgb_baseline_metrics.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-10-23T19:55:51.679Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "meta_features.json",
+              "DocumentMoniker": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\preprocessed\\meta_features.json",
+              "RelativeDocumentMoniker": "outputs\\preprocessed\\meta_features.json",
+              "ToolTip": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\preprocessed\\meta_features.json",
+              "RelativeToolTip": "outputs\\preprocessed\\meta_features.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-10-23T18:13:31.243Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "meta_metrics.json",
+              "DocumentMoniker": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\preprocessed\\meta_metrics.json",
+              "RelativeDocumentMoniker": "outputs\\preprocessed\\meta_metrics.json",
+              "ToolTip": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\preprocessed\\meta_metrics.json",
+              "RelativeToolTip": "outputs\\preprocessed\\meta_metrics.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-10-23T18:12:58.876Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "meta_train.py",
+              "DocumentMoniker": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\meta\\meta_train.py",
+              "RelativeDocumentMoniker": "meta\\meta_train.py",
+              "ToolTip": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\meta\\meta_train.py",
+              "RelativeToolTip": "meta\\meta_train.py",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAIsBAAAaAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-23T18:06:11.591Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "ae_mlpreg.py",
+              "DocumentMoniker": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\repr_learning\\ae_mlpreg.py",
+              "RelativeDocumentMoniker": "repr_learning\\ae_mlpreg.py",
+              "ToolTip": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\repr_learning\\ae_mlpreg.py",
+              "RelativeToolTip": "repr_learning\\ae_mlpreg.py",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-23T18:05:44.054Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "run_detectors.py",
+              "DocumentMoniker": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\detectors\\run_detectors.py",
+              "RelativeDocumentMoniker": "detectors\\run_detectors.py",
+              "ToolTip": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\detectors\\run_detectors.py",
+              "RelativeToolTip": "detectors\\run_detectors.py",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-23T18:05:13.166Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "merge_and_clean.py",
+              "DocumentMoniker": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\preprocess\\merge_and_clean.py",
+              "RelativeDocumentMoniker": "preprocess\\merge_and_clean.py",
+              "ToolTip": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\preprocess\\merge_and_clean.py",
+              "RelativeToolTip": "preprocess\\merge_and_clean.py",
+              "ViewState": "AgIAABkBAAAAAAAAAAAIwCoBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2025-10-23T18:03:37.055Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "metrics_prep.json",
+              "DocumentMoniker": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\compare\\metrics_prep.json",
+              "RelativeDocumentMoniker": "outputs\\compare\\metrics_prep.json",
+              "ToolTip": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\compare\\metrics_prep.json",
+              "RelativeToolTip": "outputs\\compare\\metrics_prep.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-10-23T21:28:36.82Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "comparison.json",
+              "DocumentMoniker": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\compare\\comparison.json",
+              "RelativeDocumentMoniker": "outputs\\compare\\comparison.json",
+              "ToolTip": "X:\\ADNSvadzim\\ADNS\\src\\ModelDemo\\ModelDemo\\outputs\\compare\\comparison.json",
+              "RelativeToolTip": "outputs\\compare\\comparison.json",
+              "ViewState": "AgIAAA8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-10-23T21:28:44.533Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
