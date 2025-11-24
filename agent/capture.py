@@ -152,7 +152,9 @@ def _infer_service(proto: str, src_port: Optional[int], dst_port: Optional[int],
 
 def _record_from_parts(parts: List[str]) -> Optional[Dict]:
     if len(parts) < len(TSHARK_FIELDS):
-        return None
+        parts = parts + [""] * (len(TSHARK_FIELDS) - len(parts))
+    elif len(parts) > len(TSHARK_FIELDS):
+        parts = parts[: len(TSHARK_FIELDS)]
 
     ts = _safe_float(parts[0], time.time())
     src = parts[1] or ""
@@ -279,10 +281,10 @@ def run() -> None:
             if len(buf) == 1:
                 logging.debug(
                     "buffering new flow window starting with %s -> %s (%s %s)",
-                    src,
-                    dst,
-                    proto,
-                    length,
+                    rec.get("src_ip", "?"),
+                    rec.get("dst_ip", "?"),
+                    rec.get("proto", "?"),
+                    rec.get("bytes", 0),
                 )
 
             now = time.time()
