@@ -7,6 +7,7 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 
 from model_runner import DetectionEngine
+from task_queue import enqueue_flow_scoring
 
 app = Flask(__name__)
 CORS(app)
@@ -42,6 +43,7 @@ class Flow(db.Model):
     dst_ip = db.Column(db.String(64), nullable=False, index=True)
     proto = db.Column(db.String(16), nullable=False)
     bytes = db.Column(db.Integer, nullable=False, default=0)
+    extra = db.Column(db.JSON, nullable=True)
 
     predictions = db.relationship("Prediction", backref="flow", lazy="dynamic", cascade="all, delete-orphan")
 
@@ -99,16 +101,30 @@ def generate_attack_flows(kind: str, count: int) -> list[Flow]:
     now = datetime.now(timezone.utc)
     flows: list[Flow] = []
 
-    def _add_flow(ts_offset: float, src: str, dst: str, proto: str, byte_count: int) -> None:
-        flows.append(
-            Flow(
-                timestamp=now - timedelta(seconds=ts_offset),
-                src_ip=src,
-                dst_ip=dst,
-                proto=normalize_protocol(proto),
-                bytes=max(0, int(byte_count)),
-            )
+    def _make_extra(proto: str, src_port: int, dst_port: int, byte_count: int, service_hint: str | None = None):
+        total = max(0, int(byte_count))
+        reply = int(total * rng.uniform(0.05, 0.3))
+        return {
+            "src_port": src_port,
+            "dst_port": dst_port,
+            "service": service_hint or proto.lower(),
+            "duration": rng.uniform(0.25, 3.0),
+            "src_bytes": total,
+            "dst_bytes": reply,
+            "src_pkts": max(1, total // 900),
+            "dst_pkts": max(1, reply // 900),
+        }
+
+    def _add_flow(ts_offset: float, src: str, dst: str, proto: str, byte_count: int, extra: dict | None = None) -> None:
+        flow = Flow(
+            timestamp=now - timedelta(seconds=ts_offset),
+            src_ip=src,
+            dst_ip=dst,
+            proto=normalize_protocol(proto),
+            bytes=max(0, int(byte_count)),
         )
+        flow.extra = extra
+        flows.append(flow)
 
     for i in range(count):
         if kind == "botnet_flood":
@@ -116,20 +132,27 @@ def generate_attack_flows(kind: str, count: int) -> list[Flow]:
             src = _pattern_ip("10.x.x.x", rng)
             bytes_val = rng.randint(60_000, 250_000)
             offset = rng.uniform(0, 25)
-            _add_flow(offset, src, dst, "TCP", bytes_val)
+            src_port = rng.randint(1024, 65000)
+            extra = _make_extra("tcp", src_port, 80, bytes_val, "http")
+            _add_flow(offset, src, dst, "TCP", bytes_val, extra)
         elif kind == "data_exfiltration":
             src = rng.choice(["10.0.5.33", "10.0.5.34"])
             dst = _pattern_ip("203.0.113.x", rng)
             bytes_val = rng.randint(120_000, 320_000)
             offset = rng.uniform(0, 40)
-            _add_flow(offset, src, dst, "TCP", bytes_val)
+            src_port = rng.randint(20000, 60000)
+            extra = _make_extra("tcp", src_port, 443, bytes_val, "https")
+            _add_flow(offset, src, dst, "TCP", bytes_val, extra)
         elif kind == "port_scan":
             src = rng.choice(["172.16.8.4", "172.16.8.5"])
             dst = f"192.168.{rng.randint(1, 10)}.{(i % 200) + 1}"
             proto = rng.choice(["UDP", "TCP"])
             bytes_val = rng.randint(800, 5000)
             offset = rng.uniform(0, 60)
-            _add_flow(offset, src, dst, proto, bytes_val)
+            dst_port = rng.randint(1, 1024)
+            src_port = rng.randint(20000, 65000)
+            extra = _make_extra(proto.lower(), src_port, dst_port, bytes_val, proto.lower())
+            _add_flow(offset, src, dst, proto, bytes_val, extra)
         else:
             raise ValueError(f"unsupported attack type '{kind}'")
 
@@ -167,6 +190,111 @@ def normalize_protocol(value) -> str:
     return text.upper()
 
 
+def _coerce_int(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    text = str(value).strip()
+    if not text:
+        return None
+    base = 16 if text.lower().startswith("0x") else 10
+    try:
+        return int(text, base)
+    except ValueError:
+        digits = "".join(ch for ch in text if ch.isdigit())
+        if digits:
+            return int(digits)
+    return None
+
+
+def _coerce_float(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _clean_text(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+EXTRA_INT_FIELDS = {
+    "src_port",
+    "dst_port",
+    "src_bytes",
+    "dst_bytes",
+    "src_pkts",
+    "dst_pkts",
+    "dns_qclass",
+    "dns_qtype",
+    "dns_rcode",
+    "http_status_code",
+    "http_request_body_len",
+    "http_response_body_len",
+}
+
+EXTRA_FLOAT_FIELDS = {"duration"}
+
+EXTRA_TEXT_FIELDS = {
+    "dns_query",
+    "http_method",
+    "http_uri",
+    "http_referrer",
+    "http_version",
+    "http_user_agent",
+    "http_orig_mime_types",
+    "http_resp_mime_types",
+    "weird_name",
+    "weird_addl",
+    "weird_notice",
+    "ssl_cipher",
+}
+
+
+def build_flow_extra(rec: dict) -> dict | None:
+    extra: dict = {}
+    for field in EXTRA_INT_FIELDS:
+        val = _coerce_int(rec.get(field))
+        if val is not None:
+            extra[field] = val
+
+    for field in EXTRA_FLOAT_FIELDS:
+        val = _coerce_float(rec.get(field))
+        if val is not None:
+            extra[field] = val
+
+    for field in EXTRA_TEXT_FIELDS:
+        val = _clean_text(rec.get(field))
+        if val:
+            extra[field] = val
+
+    service = _clean_text(rec.get("service"))
+    if service:
+        extra["service"] = service.lower()
+
+    ssl_version = _coerce_int(rec.get("ssl_version"))
+    if ssl_version is not None:
+        extra["ssl_version"] = ssl_version
+
+    # allow callers to set explicit src/dst jitter values later if desired
+    return extra or None
+
+
 def flow_to_dict(flow: Flow) -> dict:
     latest_label = None
     pred = flow.predictions.order_by(Prediction.created_at.desc()).first()
@@ -182,6 +310,7 @@ def flow_to_dict(flow: Flow) -> dict:
         "bytes": flow.bytes,
         "score": latest_prediction_score(flow),
         "label": latest_label,
+        "extra": flow.extra or {},
     }
 
 
@@ -269,18 +398,27 @@ def ingest():
         return jsonify({"error": "invalid payload"}), 400
 
     created = 0
+    flow_records: list[Flow] = []
     for rec in batch:
+        extra = build_flow_extra(rec)
         flow = Flow(
             timestamp=parse_timestamp(rec.get("ts")),
             src_ip=rec.get("src_ip", ""),
             dst_ip=rec.get("dst_ip", ""),
             proto=normalize_protocol(rec.get("proto", "")),
             bytes=int(rec.get("bytes") or 0),
+            extra=extra,
         )
+        flow_records.append(flow)
         db.session.add(flow)
         created += 1
 
     try:
+        flow_ids: list[int] = []
+        if flow_records:
+            db.session.flush()
+            flow_ids = [flow.id for flow in flow_records]
+
         db.session.commit()
     except Exception as exc:  # pragma: no cover
         db.session.rollback()
@@ -291,7 +429,20 @@ def ingest():
     if purged:
         app.logger.info("purged %d old flow(s)", purged)
 
-    return jsonify({"status": "ok", "ingested": created, "purged": purged})
+    enqueued = 0
+    if flow_ids:
+        try:
+            enqueued = enqueue_flow_scoring(flow_ids)
+        except Exception as exc:  # pragma: no cover
+            app.logger.exception("failed to enqueue flows for scoring: %s", exc)
+            try:
+                from tasks import score_flow_batch  # type: ignore
+
+                score_flow_batch(flow_ids)
+            except Exception:
+                app.logger.exception("inline scoring fallback also failed")
+
+    return jsonify({"status": "ok", "ingested": created, "purged": purged, "queued": enqueued})
 
 
 @app.post("/simulate")

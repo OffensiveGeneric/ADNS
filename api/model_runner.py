@@ -1,19 +1,40 @@
 from __future__ import annotations
 
+import hashlib
+import ipaddress
 import math
 import os
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Tuple
+from typing import Callable, Iterable, Tuple
 
 import joblib
+import numpy as np
 import pandas as pd
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_PATH = BASE_DIR / "model_artifacts" / "flow_detector.joblib"
+DEFAULT_META_MODEL_PATH = BASE_DIR / "model_artifacts" / "meta_model_combined.joblib"
+
+
+def _is_private_ip(value: str) -> bool:
+    try:
+        return ipaddress.ip_address(value).is_private
+    except ValueError:
+        return False
+
+
+def _timestamp_to_epoch(ts: datetime | None) -> float:
+    if ts is None:
+        return 0.0
+    if ts.tzinfo is not None:
+        return float(ts.timestamp())
+    return float(ts.replace(tzinfo=None).timestamp())
 
 
 class FlowModel:
-    """Wrapper around the trained sklearn pipeline."""
+    """Wrapper around the legacy sklearn pipeline with byte/proto features."""
 
     def __init__(self, model_path: str | os.PathLike | None = None) -> None:
         resolved = Path(model_path or os.environ.get("ADNS_MODEL_PATH", DEFAULT_MODEL_PATH))
@@ -35,7 +56,9 @@ class FlowModel:
             "proto": proto_norm,
         }
 
-    def score(self, bytes_count: int, proto: str) -> Tuple[float, str]:
+    def score(self, flow) -> Tuple[float, str]:
+        bytes_count = getattr(flow, "bytes", flow)
+        proto = getattr(flow, "proto", getattr(flow, "protocol", ""))
         row = pd.DataFrame([self._feature_dict(bytes_count, proto)])
         prob = float(self.pipeline.predict_proba(row)[0][1])
         if prob >= self.anomaly_threshold:
@@ -47,27 +70,364 @@ class FlowModel:
         return prob, label
 
 
+@dataclass
+class DirectionalBytes:
+    src: float
+    dst: float
+
+
+class MetaFeatureBuilder:
+    """
+    Builds a feature vector compatible with the combined ExtraTrees/XGBoost
+    model bundle. Many TON_IoT columns are unavailable in live telemetry, so we
+    approximate or default them to zero until the agent emits richer metadata.
+    """
+
+    FEATURE_COLUMNS: Tuple[str, ...] = (
+        "ts",
+        "src_ip",
+        "src_port",
+        "dst_ip",
+        "dst_port",
+        "proto",
+        "service",
+        "duration",
+        "src_bytes",
+        "dst_bytes",
+        "conn_state",
+        "missed_bytes",
+        "src_pkts",
+        "src_ip_bytes",
+        "dst_pkts",
+        "dst_ip_bytes",
+        "dns_query",
+        "dns_qclass",
+        "dns_qtype",
+        "dns_rcode",
+        "dns_AA",
+        "dns_RD",
+        "dns_RA",
+        "dns_rejected",
+        "ssl_version",
+        "ssl_cipher",
+        "ssl_resumed",
+        "ssl_established",
+        "ssl_subject",
+        "ssl_issuer",
+        "http_trans_depth",
+        "http_method",
+        "http_uri",
+        "http_referrer",
+        "http_version",
+        "http_request_body_len",
+        "http_response_body_len",
+        "http_status_code",
+        "http_user_agent",
+        "http_orig_mime_types",
+        "http_resp_mime_types",
+        "weird_name",
+        "weird_addl",
+        "weird_notice",
+    )
+
+    PROTO_CODE = {
+        "ICMP": 1,
+        "TCP": 6,
+        "UDP": 17,
+        "GRE": 47,
+        "ESP": 50,
+        "AH": 51,
+        "SCTP": 132,
+    }
+
+    def __init__(self, avg_packet_bytes: int = 450) -> None:
+        self.avg_packet_bytes = max(64, avg_packet_bytes)
+
+    def build(self, flow) -> pd.DataFrame:
+        row = {col: 0.0 for col in self.FEATURE_COLUMNS}
+        row["ts"] = _timestamp_to_epoch(getattr(flow, "timestamp", None))
+        extra = getattr(flow, "extra", None) or {}
+
+        src_ip = getattr(flow, "src_ip", "") or ""
+        dst_ip = getattr(flow, "dst_ip", "") or ""
+        row["src_ip"] = float(self._ip_to_int(src_ip))
+        row["dst_ip"] = float(self._ip_to_int(dst_ip))
+
+        proto = (getattr(flow, "proto", "") or "").upper()
+        row["proto"] = float(self._proto_code(proto))
+
+        service_hint = extra.get("service")
+        if service_hint:
+            row["service"] = self._encode_text(str(service_hint).lower(), modulus=4099)
+        else:
+            row["service"] = float(self._stable_hash(proto or "unknown") % 997)
+        row["conn_state"] = float(self._stable_hash(f"{proto}:{self._direction_tag(src_ip, dst_ip)}") % 509)
+
+        src_bytes_extra = self._safe_float(extra.get("src_bytes"))
+        dst_bytes_extra = self._safe_float(extra.get("dst_bytes"))
+        if src_bytes_extra is not None or dst_bytes_extra is not None:
+            directional = DirectionalBytes(
+                src=max(0.0, src_bytes_extra or 0.0),
+                dst=max(0.0, dst_bytes_extra or 0.0),
+            )
+            total_bytes = directional.src + directional.dst
+        else:
+            total_bytes = max(0.0, float(getattr(flow, "bytes", 0) or 0))
+            directional = self._split_directional_bytes(total_bytes, src_ip, dst_ip)
+
+        duration_extra = self._safe_float(extra.get("duration"))
+        row["duration"] = max(0.01, duration_extra) if duration_extra is not None else self._estimate_duration(total_bytes)
+
+        row["src_bytes"] = directional.src
+        row["dst_bytes"] = directional.dst
+        row["src_ip_bytes"] = directional.src
+        row["dst_ip_bytes"] = directional.dst
+
+        src_pkts_extra = self._safe_float(extra.get("src_pkts"))
+        dst_pkts_extra = self._safe_float(extra.get("dst_pkts"))
+        row["src_pkts"] = max(0.0, src_pkts_extra) if src_pkts_extra is not None else self._estimate_packets(directional.src)
+        row["dst_pkts"] = max(0.0, dst_pkts_extra) if dst_pkts_extra is not None else self._estimate_packets(directional.dst)
+
+        for field in ("src_port", "dst_port", "dns_qclass", "dns_qtype", "dns_rcode", "http_status_code"):
+            val = self._safe_int(extra.get(field))
+            if val is not None:
+                row[field] = float(val)
+
+        for field in ("http_request_body_len", "http_response_body_len"):
+            val = self._safe_float(extra.get(field))
+            if val is not None:
+                row[field] = float(val)
+
+        dns_query = extra.get("dns_query")
+        if dns_query:
+            row["dns_query"] = self._encode_text(dns_query, modulus=20011)
+
+        http_method = extra.get("http_method")
+        if http_method:
+            row["http_method"] = self._encode_text(http_method.upper(), modulus=4001)
+
+        http_uri = extra.get("http_uri")
+        if http_uri:
+            row["http_uri"] = self._encode_text(http_uri, modulus=65521)
+
+        http_referrer = extra.get("http_referrer")
+        if http_referrer:
+            row["http_referrer"] = self._encode_text(http_referrer, modulus=49157)
+
+        http_version = extra.get("http_version")
+        if http_version:
+            row["http_version"] = self._encode_text(http_version, modulus=10139)
+
+        http_user_agent = extra.get("http_user_agent")
+        if http_user_agent:
+            row["http_user_agent"] = self._encode_text(http_user_agent, modulus=45007)
+
+        http_orig = extra.get("http_orig_mime_types")
+        if http_orig:
+            row["http_orig_mime_types"] = self._encode_text(http_orig, modulus=32749)
+
+        http_resp = extra.get("http_resp_mime_types")
+        if http_resp:
+            row["http_resp_mime_types"] = self._encode_text(http_resp, modulus=32749)
+
+        for field in ("weird_name", "weird_addl", "weird_notice"):
+            value = extra.get(field)
+            if value:
+                row[field] = self._encode_text(value, modulus=50021)
+
+        ssl_version = self._safe_int(extra.get("ssl_version"))
+        if ssl_version is not None:
+            row["ssl_version"] = float(ssl_version)
+        ssl_cipher = extra.get("ssl_cipher")
+        if ssl_cipher:
+            row["ssl_cipher"] = self._encode_text(ssl_cipher, modulus=65267)
+
+        return pd.DataFrame([row], columns=self.FEATURE_COLUMNS, dtype="float32")
+
+    def _ip_to_int(self, value: str) -> int:
+        try:
+            return int(ipaddress.ip_address(value))
+        except ValueError:
+            if not value:
+                return 0
+            return self._stable_hash(value) % (2**31)
+
+    def _proto_code(self, proto: str) -> int:
+        if proto.isdigit():
+            return int(proto)
+        return self.PROTO_CODE.get(proto, 0)
+
+    def _stable_hash(self, value: str) -> int:
+        digest = hashlib.sha1(value.encode("utf-8")).hexdigest()
+        return int(digest[:8], 16)
+
+    def _direction_tag(self, src: str, dst: str) -> str:
+        src_priv = _is_private_ip(src)
+        dst_priv = _is_private_ip(dst)
+        if src_priv and not dst_priv:
+            return "outbound"
+        if not src_priv and dst_priv:
+            return "inbound"
+        if src_priv and dst_priv:
+            return "internal"
+        return "external"
+
+    def _split_directional_bytes(self, total: float, src: str, dst: str) -> DirectionalBytes:
+        direction = self._direction_tag(src, dst)
+        if direction == "outbound":
+            return DirectionalBytes(src=total, dst=0.0)
+        if direction == "inbound":
+            return DirectionalBytes(src=0.0, dst=total)
+        half = total / 2.0
+        return DirectionalBytes(src=half, dst=half)
+
+    def _estimate_packets(self, directional_bytes: float) -> float:
+        if directional_bytes <= 0:
+            return 0.0
+        return max(1.0, directional_bytes / float(self.avg_packet_bytes))
+
+    def _estimate_duration(self, total_bytes: float) -> float:
+        if total_bytes <= 0:
+            return 0.01
+        return max(0.01, total_bytes / 120_000.0)
+
+    @staticmethod
+    def _safe_int(value) -> int | None:
+        if value is None or value == "":
+            return None
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+        text = str(value).strip()
+        if not text:
+            return None
+        base = 16 if text.lower().startswith("0x") else 10
+        try:
+            return int(text, base)
+        except ValueError:
+            digits = "".join(ch for ch in text if ch.isdigit())
+            return int(digits) if digits else None
+
+    @staticmethod
+    def _safe_float(value) -> float | None:
+        if value is None or value == "":
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        text = str(value).strip()
+        if not text:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+
+    def _encode_text(self, value: str, modulus: int = 10007) -> float:
+        return float(self._stable_hash(value) % modulus)
+
+
+class MetaEnsembleModel:
+    """Loads the combined ExtraTrees/XGBoost bundle and produces an averaged score."""
+
+    def __init__(self, model_path: str | os.PathLike | None = None) -> None:
+        resolved = Path(model_path or os.environ.get("ADNS_META_MODEL_PATH", DEFAULT_META_MODEL_PATH))
+        if not resolved.exists():
+            raise FileNotFoundError(f"meta model artifact not found at {resolved}")
+
+        try:
+            payload = joblib.load(resolved)
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                "Failed to load meta model bundle because xgboost is missing. "
+                "Install xgboost in the API environment."
+            ) from exc
+
+        if not isinstance(payload, dict):
+            raise ValueError("Unexpected artifact format: expected a dict of estimators.")
+
+        self.models: dict[str, object] = {}
+        if "xgboost" in payload:
+            self.models["xgboost"] = payload["xgboost"]
+        if "extra_trees" in payload:
+            self.models["extra_trees"] = payload["extra_trees"]
+
+        if not self.models:
+            raise ValueError("meta model bundle did not contain a supported estimator key.")
+
+        self.features = MetaFeatureBuilder()
+        self.anomaly_threshold = float(os.environ.get("ADNS_META_ANOMALY_THRESHOLD", "0.82"))
+        self.watch_threshold = float(os.environ.get("ADNS_META_WATCH_THRESHOLD", "0.6"))
+
+    def score(self, flow) -> Tuple[float, str]:
+        feature_row = self.features.build(flow)
+        values = feature_row.to_numpy(dtype="float32")
+        probabilities: list[float] = []
+
+        for name, model in self.models.items():
+            vector = self._match_shape(values, getattr(model, "n_features_in_", values.shape[1]))
+            try:
+                prob = float(model.predict_proba(vector)[0][1])
+            except AttributeError:
+                logits = model.predict(vector)
+                prob = float(logits[0])
+            probabilities.append(prob)
+
+        if not probabilities:
+            raise RuntimeError("no usable estimators were loaded from the meta model bundle")
+
+        score = float(np.mean(probabilities))
+        if score >= self.anomaly_threshold:
+            label = "anomaly"
+        elif score >= self.watch_threshold:
+            label = "watch"
+        else:
+            label = "normal"
+        return score, label
+
+    @staticmethod
+    def _match_shape(arr: np.ndarray, expected: int) -> np.ndarray:
+        current = arr.shape[1]
+        if current == expected:
+            return arr
+        if current > expected:
+            return arr[:, :expected]
+        pad = expected - current
+        return np.pad(arr, ((0, 0), (0, pad)), mode="constant", constant_values=0.0)
+
+
 class DetectionEngine:
     """
-    Attempts to load the trained FlowModel; falls back to FlowScorer heuristics
-    if the artifact has not been provisioned yet.
+    Attempts to load the new meta ensemble first, then the legacy FlowModel,
+    finally the heuristic FlowScorer if no artifacts are provisioned.
     """
 
     def __init__(self) -> None:
-        try:
-            self.model = FlowModel()
-            self._mode = "ml"
-        except FileNotFoundError:
+        loaders: Iterable[tuple[str, Callable[[], object]]] = (
+            ("meta", MetaEnsembleModel),
+            ("ml", FlowModel),
+        )
+
+        self._mode = "heuristic"
+        for mode, factory in loaders:
+            try:
+                self.model = factory()
+                self._mode = mode
+                break
+            except FileNotFoundError:
+                continue
+        else:
             from scoring import FlowScorer  # deferred import to avoid optional deps at import time
 
             self.model = FlowScorer()
-            self._mode = "heuristic"
 
     @property
     def mode(self) -> str:
         return self._mode
 
     def predict(self, session, flow) -> Tuple[float, str]:
-        if self._mode == "ml":
-            return self.model.score(flow.bytes, flow.proto)
+        if self._mode in {"meta", "ml"}:
+            return self.model.score(flow)
         return self.model.predict(session, flow)
