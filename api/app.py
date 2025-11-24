@@ -5,6 +5,8 @@ from datetime import datetime, timedelta, timezone
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import inspect, text
+from sqlalchemy.exc import SQLAlchemyError
 
 from model_runner import DetectionEngine
 from task_queue import enqueue_flow_scoring
@@ -61,6 +63,32 @@ class Prediction(db.Model):
 def init_db() -> None:
     with app.app_context():
         db.create_all()
+        ensure_flow_extra_column()
+
+
+def ensure_flow_extra_column() -> None:
+    """
+    Older deployments created the flows table before `extra` existed. Ensure the
+    JSON column is present so inserts from the tshark agent succeed.
+    """
+    try:
+        inspector = inspect(db.engine)
+        columns = {col["name"] for col in inspector.get_columns("flows")}
+    except SQLAlchemyError as exc:  # pragma: no cover - defensive
+        app.logger.warning("failed to inspect flows table: %s", exc)
+        return
+
+    if "extra" in columns:
+        return
+
+    column_type = "JSONB" if db.engine.dialect.name == "postgresql" else "JSON"
+    stmt = text(f"ALTER TABLE flows ADD COLUMN extra {column_type}")
+    try:
+        with db.engine.begin() as conn:
+            conn.execute(stmt)
+        app.logger.info("added flows.extra column (%s)", column_type)
+    except SQLAlchemyError as exc:  # pragma: no cover - defensive
+        app.logger.error("failed to add flows.extra column: %s", exc)
 
 
 simulation_detector = DetectionEngine()
