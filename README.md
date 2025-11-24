@@ -3,6 +3,8 @@
 ADNS is an end-to-end demo of a modern network anomaly detection platform. It ingests live packet captures, stores recent flows in PostgreSQL, pushes scoring jobs over Redis/RQ to a DetectionEngine (meta ensemble → sklearn → heuristics), and visualizes detections on a React dashboard with built-in attack simulations for classroom demos.
 
 ## Architecture
+<img width="1024" height="559" alt="image" src="https://github.com/user-attachments/assets/3c972f97-f751-4c92-9d10-fb54f326c4b3" />
+
 
 | Component | Path | Description |
 | --- | --- | --- |
