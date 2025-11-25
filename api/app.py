@@ -52,6 +52,7 @@ class Flow(db.Model):
 
 class Prediction(db.Model):
     __tablename__ = "predictions"
+    __table_args__ = (db.UniqueConstraint("flow_id", name="uq_predictions_flow_id"),)
 
     id = db.Column(db.Integer, primary_key=True)
     flow_id = db.Column(db.Integer, db.ForeignKey("flows.id"), nullable=False, index=True)
@@ -64,6 +65,7 @@ def init_db() -> None:
     with app.app_context():
         db.create_all()
         ensure_flow_extra_column()
+        ensure_prediction_flow_unique_index()
 
 
 def ensure_flow_extra_column() -> None:
@@ -89,6 +91,60 @@ def ensure_flow_extra_column() -> None:
         app.logger.info("added flows.extra column (%s)", column_type)
     except SQLAlchemyError as exc:  # pragma: no cover - defensive
         app.logger.error("failed to add flows.extra column: %s", exc)
+
+
+def ensure_prediction_flow_unique_index() -> None:
+    """Guarantee that predictions.flow_id stays unique for ON CONFLICT logic."""
+    index_name = "idx_predictions_flow_id_unique"
+    try:
+        inspector = inspect(db.engine)
+        indexes = inspector.get_indexes("predictions")
+    except SQLAlchemyError as exc:  # pragma: no cover - defensive
+        app.logger.warning("failed to inspect predictions indexes: %s", exc)
+        return
+
+    for idx in indexes:
+        columns = idx.get("column_names") or []
+        if idx.get("unique") and columns == ["flow_id"]:
+            return
+        if idx.get("name") == index_name and idx.get("unique"):
+            return
+
+    # Prune duplicate rows so the unique index can be created safely.
+    removed = 0
+    duplicates = (
+        db.session.query(Prediction.flow_id)
+        .group_by(Prediction.flow_id)
+        .having(db.func.count(Prediction.id) > 1)
+        .all()
+    )
+    for (flow_id,) in duplicates:
+        dup_ids = (
+            db.session.query(Prediction.id)
+            .filter(Prediction.flow_id == flow_id)
+            .order_by(Prediction.id.asc())
+            .all()
+        )
+        ids_to_delete = [row.id for row in dup_ids[1:]]
+        if ids_to_delete:
+            removed += (
+                Prediction.query.filter(Prediction.id.in_(ids_to_delete)).delete(synchronize_session=False)
+            )
+
+    if removed:
+        db.session.commit()
+        app.logger.info("pruned %d duplicate prediction row(s) before enforcing uniqueness", removed)
+    else:
+        db.session.rollback()
+
+    stmt = text(
+        f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON predictions(flow_id)"
+    )
+    try:
+        with db.engine.begin() as conn:
+            conn.execute(stmt)
+    except SQLAlchemyError as exc:  # pragma: no cover - defensive
+        app.logger.error("failed to create unique predictions index: %s", exc)
 
 
 simulation_detector = DetectionEngine()

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import logging
 import math
 import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Iterable, Tuple
+from typing import Callable, Iterable, Sequence, Tuple
 
 import joblib
 import numpy as np
@@ -16,6 +17,8 @@ import pandas as pd
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_PATH = BASE_DIR / "model_artifacts" / "flow_detector.joblib"
 DEFAULT_META_MODEL_PATH = BASE_DIR / "model_artifacts" / "meta_model_combined.joblib"
+
+logger = logging.getLogger(__name__)
 
 
 def _is_private_ip(value: str) -> bool:
@@ -46,6 +49,7 @@ class FlowModel:
         self.watch_threshold = float(
             payload.get("threshold_watch", max(0.2, self.anomaly_threshold * 0.65))
         )
+        self.model_path = resolved
 
     def _feature_dict(self, bytes_count: int, proto: str) -> dict:
         total_bytes = max(0.0, float(bytes_count or 0))
@@ -56,18 +60,32 @@ class FlowModel:
             "proto": proto_norm,
         }
 
-    def score(self, flow) -> Tuple[float, str]:
-        bytes_count = getattr(flow, "bytes", flow)
-        proto = getattr(flow, "proto", getattr(flow, "protocol", ""))
-        row = pd.DataFrame([self._feature_dict(bytes_count, proto)])
-        prob = float(self.pipeline.predict_proba(row)[0][1])
+    def _label_for_probability(self, prob: float) -> str:
         if prob >= self.anomaly_threshold:
-            label = "anomaly"
-        elif prob >= self.watch_threshold:
-            label = "watch"
-        else:
-            label = "normal"
-        return prob, label
+            return "anomaly"
+        if prob >= self.watch_threshold:
+            return "watch"
+        return "normal"
+
+    def score(self, flow) -> Tuple[float, str]:
+        results = self.score_many([flow])
+        return results[0] if results else (0.0, "normal")
+
+    def score_many(self, flows: Sequence) -> list[Tuple[float, str]]:
+        if not flows:
+            return []
+
+        rows = []
+        for flow in flows:
+            bytes_count = getattr(flow, "bytes", flow)
+            proto = getattr(flow, "proto", getattr(flow, "protocol", ""))
+            rows.append(self._feature_dict(bytes_count, proto))
+        frame = pd.DataFrame(rows)
+        probabilities = self.pipeline.predict_proba(frame)[:, 1]
+        return [
+            (float(prob), self._label_for_probability(float(prob)))
+            for prob in probabilities
+        ]
 
 
 @dataclass
@@ -144,6 +162,16 @@ class MetaFeatureBuilder:
         self.avg_packet_bytes = max(64, avg_packet_bytes)
 
     def build(self, flow) -> pd.DataFrame:
+        row = self._build_row(flow)
+        return pd.DataFrame([row], columns=self.FEATURE_COLUMNS, dtype="float32")
+
+    def build_batch(self, flows: Sequence) -> pd.DataFrame:
+        if not flows:
+            return pd.DataFrame(columns=self.FEATURE_COLUMNS, dtype="float32")
+        rows = [self._build_row(flow) for flow in flows]
+        return pd.DataFrame(rows, columns=self.FEATURE_COLUMNS, dtype="float32")
+
+    def _build_row(self, flow) -> dict:
         row = {col: 0.0 for col in self.FEATURE_COLUMNS}
         row["ts"] = _timestamp_to_epoch(getattr(flow, "timestamp", None))
         extra = getattr(flow, "extra", None) or {}
@@ -242,7 +270,7 @@ class MetaFeatureBuilder:
         if ssl_cipher:
             row["ssl_cipher"] = self._encode_text(ssl_cipher, modulus=65267)
 
-        return pd.DataFrame([row], columns=self.FEATURE_COLUMNS, dtype="float32")
+        return row
 
     def _ip_to_int(self, value: str) -> int:
         try:
@@ -360,32 +388,47 @@ class MetaEnsembleModel:
         self.features = MetaFeatureBuilder()
         self.anomaly_threshold = float(os.environ.get("ADNS_META_ANOMALY_THRESHOLD", "0.82"))
         self.watch_threshold = float(os.environ.get("ADNS_META_WATCH_THRESHOLD", "0.6"))
+        self.model_path = resolved
+
+    def _label_for_probability(self, prob: float) -> str:
+        if prob >= self.anomaly_threshold:
+            return "anomaly"
+        if prob >= self.watch_threshold:
+            return "watch"
+        return "normal"
 
     def score(self, flow) -> Tuple[float, str]:
-        feature_row = self.features.build(flow)
-        values = feature_row.to_numpy(dtype="float32")
-        probabilities: list[float] = []
+        results = self.score_many([flow])
+        if not results:
+            raise RuntimeError("meta model produced no results")
+        return results[0]
+
+    def score_many(self, flows: Sequence) -> list[Tuple[float, str]]:
+        if not flows:
+            return []
+
+        feature_frame = self.features.build_batch(flows)
+        values = feature_frame.to_numpy(dtype="float32")
+        probabilities: list[np.ndarray] = []
 
         for name, model in self.models.items():
             vector = self._match_shape(values, getattr(model, "n_features_in_", values.shape[1]))
             try:
-                prob = float(model.predict_proba(vector)[0][1])
+                probs = model.predict_proba(vector)[:, 1]
             except AttributeError:
                 logits = model.predict(vector)
-                prob = float(logits[0])
-            probabilities.append(prob)
+                probs = np.array(logits).reshape(-1)
+            probabilities.append(np.asarray(probs, dtype="float32"))
 
         if not probabilities:
             raise RuntimeError("no usable estimators were loaded from the meta model bundle")
 
-        score = float(np.mean(probabilities))
-        if score >= self.anomaly_threshold:
-            label = "anomaly"
-        elif score >= self.watch_threshold:
-            label = "watch"
-        else:
-            label = "normal"
-        return score, label
+        stacked = np.vstack(probabilities)
+        mean_scores = np.mean(stacked, axis=0)
+        return [
+            (float(score), self._label_for_probability(float(score)))
+            for score in mean_scores
+        ]
 
     @staticmethod
     def _match_shape(arr: np.ndarray, expected: int) -> np.ndarray:
@@ -405,12 +448,47 @@ class DetectionEngine:
     """
 
     def __init__(self) -> None:
+        self._mode = "heuristic"
+        self.model = None
+        self._artifact_mtimes: dict[str, float] = {}
+        self._load_model()
+
+    @property
+    def mode(self) -> str:
+        return self._mode
+
+    def reload(self) -> None:
+        self._load_model()
+
+    def reload_if_stale(self) -> None:
+        current = self._capture_artifact_mtimes()
+        if current != self._artifact_mtimes:
+            logger.info("reloading detection engine after model artifact change")
+            self._load_model()
+
+    def predict(self, session, flow) -> Tuple[float, str]:
+        self.reload_if_stale()
+        if self._mode in {"meta", "ml"}:
+            return self.model.score(flow)
+        return self.model.predict(session, flow)
+
+    def predict_many(self, session, flows: Sequence) -> list[Tuple[float, str]]:
+        if not flows:
+            return []
+        self.reload_if_stale()
+        if self._mode in {"meta", "ml"}:
+            return self.model.score_many(flows)
+        return [self.model.predict(session, flow) for flow in flows]
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _load_model(self) -> None:
         loaders: Iterable[tuple[str, Callable[[], object]]] = (
             ("meta", MetaEnsembleModel),
             ("ml", FlowModel),
         )
 
-        self._mode = "heuristic"
         for mode, factory in loaders:
             try:
                 self.model = factory()
@@ -422,12 +500,26 @@ class DetectionEngine:
             from scoring import FlowScorer  # deferred import to avoid optional deps at import time
 
             self.model = FlowScorer()
+            self._mode = "heuristic"
 
-    @property
-    def mode(self) -> str:
-        return self._mode
+        self._artifact_mtimes = self._capture_artifact_mtimes()
+        logger.info("DetectionEngine initialized in %s mode", self._mode)
 
-    def predict(self, session, flow) -> Tuple[float, str]:
-        if self._mode in {"meta", "ml"}:
-            return self.model.score(flow)
-        return self.model.predict(session, flow)
+    def _candidate_paths(self) -> list[Path]:
+        paths: list[Path] = []
+        meta_path = os.environ.get("ADNS_META_MODEL_PATH")
+        ml_path = os.environ.get("ADNS_MODEL_PATH")
+        paths.append(Path(meta_path) if meta_path else DEFAULT_META_MODEL_PATH)
+        paths.append(Path(ml_path) if ml_path else DEFAULT_MODEL_PATH)
+        return [p for p in paths if p]
+
+    def _capture_artifact_mtimes(self) -> dict[str, float]:
+        mtimes: dict[str, float] = {}
+        for path in self._candidate_paths():
+            try:
+                resolved = path.resolve()
+            except FileNotFoundError:
+                continue
+            if resolved.exists():
+                mtimes[str(resolved)] = resolved.stat().st_mtime
+        return mtimes
