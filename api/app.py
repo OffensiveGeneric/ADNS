@@ -14,7 +14,8 @@ from task_queue import enqueue_flow_scoring
 app = Flask(__name__)
 CORS(app)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://adns:adns_password@127.0.0.1/adns"
+DEFAULT_DB_URI = "postgresql://adns:adns_password@127.0.0.1/adns"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("SQLALCHEMY_DATABASE_URI", DEFAULT_DB_URI)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)

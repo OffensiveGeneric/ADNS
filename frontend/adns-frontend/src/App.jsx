@@ -16,6 +16,9 @@ import {
 } from "recharts";
 import "./App.css";
 
+const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const api = axios.create({ baseURL: apiBase });
+
 const SIM_ATTACKS = [
   {
     type: "botnet_flood",
@@ -64,8 +67,8 @@ export default function App() {
     try {
       setError("");
       const [flowsRes, statsRes] = await Promise.all([
-        axios.get("/api/flows"),
-        axios.get("/api/anomalies"),
+        api.get("/api/flows"),
+        api.get("/api/anomalies"),
       ]);
       const fetchedFlows = flowsRes.data || [];
       setFlows(fetchedFlows);
@@ -91,7 +94,7 @@ export default function App() {
       message: `Triggering ${attack.label}…`,
     });
     try {
-      const resp = await axios.post("/api/simulate", { type: attack.type });
+      const resp = await api.post("/api/simulate", { type: attack.type });
       await fetchLatest();
       setTimeout(fetchLatest, 1000);
       setSimStatus({

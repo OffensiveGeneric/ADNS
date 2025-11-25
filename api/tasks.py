@@ -10,11 +10,17 @@ from sqlalchemy.exc import IntegrityError
 
 from app import Flow, Prediction, app, db
 from model_runner import DetectionEngine
+from rdns import ReverseDNSResolver
 
 logger = logging.getLogger(__name__)
 detector = DetectionEngine()
 
 SCORING_FETCH_CHUNK = int(os.environ.get("ADNS_SCORING_FETCH_CHUNK", "256"))
+RDNS_ENABLED = os.environ.get("ADNS_RDNS_ENABLED", "true").lower() not in {"0", "false", "no"}
+RDNS_TIMEOUT = float(os.environ.get("ADNS_RDNS_TIMEOUT_MS", "500")) / 1000.0
+RDNS_CACHE_TTL = float(os.environ.get("ADNS_RDNS_CACHE_TTL", "900"))
+RDNS_CACHE_SIZE = int(os.environ.get("ADNS_RDNS_CACHE_SIZE", "500"))
+resolver = ReverseDNSResolver(cache_ttl=RDNS_CACHE_TTL, cache_size=RDNS_CACHE_SIZE, timeout=RDNS_TIMEOUT) if RDNS_ENABLED else None
 
 
 def _chunked(ids: Sequence[int], size: int) -> Iterable[list[int]]:
@@ -86,7 +92,11 @@ def score_flow_batch(flow_ids: Sequence[int]) -> int:
                 if not flows:
                     continue
 
-                predictions = detector.predict_many(session, flows)
+                flows_to_score = list(flows)
+                if RDNS_ENABLED:
+                    _enrich_with_rdns(flows_to_score)
+
+                predictions = detector.predict_many(session, flows_to_score)
                 if len(predictions) != len(flows):
                     raise RuntimeError("detection engine returned mismatched prediction count")
                 now = datetime.now(timezone.utc)
@@ -114,3 +124,19 @@ def score_flow_batch(flow_ids: Sequence[int]) -> int:
             raise
         finally:
             session.remove()
+
+
+def _enrich_with_rdns(flows: Sequence[Flow]) -> None:
+    """
+    Add rdns_exists/rdns_hash to flow.extra for scoring. This does not persist changes to DB.
+    """
+    for flow in flows:
+        peer_ip = flow.src_ip or flow.dst_ip
+        if resolver is None:
+            continue
+        rdns_ok = resolver.lookup(peer_ip)
+        extra = dict(flow.extra or {})
+        extra["rdns_exists"] = bool(rdns_ok)
+        # hash the peer hostname presence without storing the name
+        extra["rdns_hash"] = 1 if rdns_ok else 0
+        flow.extra = extra

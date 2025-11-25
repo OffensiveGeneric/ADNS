@@ -21,6 +21,21 @@ Generated datasets live under `data/`, and derived artifacts (clean CSVs, model 
 
 ## Quickstart
 
+### Run locally to monitor your own traffic
+
+1) Install system deps: PostgreSQL (or use SQLite via `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db`), Redis (optional; inline scoring fallback works if Redis is down), `tshark`, Python 3.9+, Node.js 18+.  
+2) Bootstrap the repo: `./scripts/setup_local.sh` (creates `.venv`, installs API+agent deps, runs `npm install`, and copies `.env.example` to `.env` if missing).  
+3) Edit `.env` as needed:
+   - `SQLALCHEMY_DATABASE_URI` can be set to `sqlite:///./adns.db` for a zero-install database.
+   - `VITE_API_URL` only if the frontend will call the API on a different origin.
+   - `API_URL`, `INTERFACE`, `BATCH_SIZE`, etc. to control the capture agent.
+   - `ADNS_RDNS_ENABLED` and related knobs to include reverse-DNS resolution as a scoring feature.
+4) Run services (separate terminals):
+   - API: `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && cd api && flask run`
+   - Worker (optional if relying on inline scoring): `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && python api/worker.py`
+   - Agent (needs tshark + capture privileges): `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && cd agent && sudo ./capture.py`
+   - Frontend: `cd frontend/adns-frontend && export $(grep -v '^#' ../../.env | xargs) && npm run dev -- --host`
+
 ### 0. Dependencies
 
 - PostgreSQL (default URL `postgresql://adns:adns_password@127.0.0.1/adns`)

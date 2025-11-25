@@ -9,12 +9,31 @@ from typing import Dict, List, Optional
 
 import requests
 
-API_URL = "http://127.0.0.1:5000/ingest"
-TSHARK_BIN = "/usr/bin/tshark"
-INTERFACE = "eth0"
-BATCH_SIZE = 50
-POST_INTERVAL = 2.0  # seconds
-RETRY_DELAY = 3.0  # seconds
+
+def _env_str(name: str, default: str) -> str:
+    return os.environ.get(name, default)
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+API_URL = _env_str("API_URL", "http://127.0.0.1:5000/ingest")
+TSHARK_BIN = _env_str("TSHARK_BIN", "/usr/bin/tshark")
+INTERFACE = _env_str("INTERFACE", "eth0")
+BATCH_SIZE = _env_int("BATCH_SIZE", 50)
+POST_INTERVAL = _env_float("POST_INTERVAL", 2.0)  # seconds
+RETRY_DELAY = _env_float("RETRY_DELAY", 3.0)  # seconds
 DEFAULT_DURATION = 0.01
 
 TSHARK_FIELDS = [

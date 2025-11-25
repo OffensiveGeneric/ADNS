@@ -146,6 +146,8 @@ class MetaFeatureBuilder:
         "weird_name",
         "weird_addl",
         "weird_notice",
+        "rdns_exists",
+        "rdns_hash",
     )
 
     PROTO_CODE = {
@@ -269,6 +271,14 @@ class MetaFeatureBuilder:
         ssl_cipher = extra.get("ssl_cipher")
         if ssl_cipher:
             row["ssl_cipher"] = self._encode_text(ssl_cipher, modulus=65267)
+
+        rdns_exists = extra.get("rdns_exists")
+        if rdns_exists is not None:
+            row["rdns_exists"] = 1.0 if bool(rdns_exists) else 0.0
+
+        rdns_hash = self._safe_int(extra.get("rdns_hash"))
+        if rdns_hash is not None:
+            row["rdns_hash"] = float(rdns_hash % 10007)
 
         return row
 
