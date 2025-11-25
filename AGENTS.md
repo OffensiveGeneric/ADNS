@@ -54,3 +54,8 @@ Use this page to remind yourself (or other assistants) what lives where in the A
 - Secrets/DSNs live in `.env` (gitignored). Rotate any placeholder passwords before sharing images or demos.
 - When changing schema or models, plan for zero-downtime deploys: run migrations (or `init_db`) before restarting Gunicorn/RQ so `/ingest` never sees missing columns.
 - When the user signs off on a change set, automatically redeploy the relevant service(s) and sync the repo state (git commit/push or whatever workflow is configured) without waiting for another prompt.
+- **Deployment runbook recap**:
+  1. Copy updated backend files into `/var/www/adns/api` (needs sudo).
+  2. Restart `adns.service` (Gunicorn) and `adns-worker.service` so both API + RQ pick up changes.
+  3. Verify health with `systemctl status adns.service` and `systemctl status adns-worker.service` (look for `DetectionEngine initialized` in worker logs).
+  4. Commit + push the repo (rebasing if remote advanced) so production matches `origin/main`.

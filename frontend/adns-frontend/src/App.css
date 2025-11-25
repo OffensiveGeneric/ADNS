@@ -157,14 +157,17 @@ body {
 }
 
 .table-wrapper {
-  overflow: auto;
+  width: 100%;
+  overflow-x: auto;
 }
 
 .flow-table {
   width: 100%;
+  min-width: 760px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.92rem;
+  table-layout: fixed;
 }
 
 .flow-table thead {
@@ -190,6 +193,40 @@ body {
 
 .flow-table tbody tr:nth-of-type(even) {
   background: #fafbff;
+}
+
+.cell-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.flow-table th:nth-child(1),
+.flow-table td:nth-child(1) {
+  width: 18%;
+}
+
+.flow-table th:nth-child(2),
+.flow-table td:nth-child(2),
+.flow-table th:nth-child(3),
+.flow-table td:nth-child(3) {
+  width: 20%;
+}
+
+.flow-table th:nth-child(4),
+.flow-table td:nth-child(4),
+.flow-table th:nth-child(5),
+.flow-table td:nth-child(5) {
+  width: 12%;
+}
+
+.flow-table th:nth-child(6),
+.flow-table td:nth-child(6),
+.flow-table th:nth-child(7),
+.flow-table td:nth-child(7) {
+  width: 9%;
 }
 
 .score-tag {

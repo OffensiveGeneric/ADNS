@@ -362,29 +362,29 @@ export default function App() {
                     <Th>Source IP</Th>
                     <Th>Destination IP</Th>
                     <Th>Proto</Th>
-                  <Th>Bytes</Th>
-                  <Th>Score</Th>
-                  <Th>Severity</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleFlows.map((f, idx) => (
-                  <tr key={idx}>
-                      <Td>{f.ts}</Td>
+                    <Th>Bytes</Th>
+                    <Th>Score</Th>
+                    <Th>Severity</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleFlows.map((f, idx) => (
+                    <tr key={idx}>
+                      <Td>{new Date(f.ts).toLocaleString()}</Td>
                       <Td>{f.src_ip}</Td>
                       <Td>{f.dst_ip}</Td>
-                    <Td>{f.proto}</Td>
-                    <Td>{f.bytes}</Td>
-                    <Td>
-                      <ScoreTag score={f.score} />
-                    </Td>
-                    <Td>
-                      <ThreatBadge label={f.label} score={f.score} />
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <Td>{f.proto}</Td>
+                      <Td>{f.bytes}</Td>
+                      <Td clamp={false}>
+                        <ScoreTag score={f.score} />
+                      </Td>
+                      <Td clamp={false}>
+                        <ThreatBadge label={f.label} score={f.score} />
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </>
         )}
@@ -406,8 +406,15 @@ function Th({ children }) {
   return <th>{children}</th>;
 }
 
-function Td({ children }) {
-  return <td>{children}</td>;
+function Td({ children, clamp = true }) {
+  if (!clamp) {
+    return <td>{children}</td>;
+  }
+  return (
+    <td>
+      <span className="cell-text">{children}</span>
+    </td>
+  );
 }
 
 function ScoreTag({ score }) {
