@@ -34,7 +34,8 @@ run_psql -v db="$DB" -v user="$USER" -c \
   "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db') THEN EXECUTE format('CREATE DATABASE %I WITH OWNER %I ENCODING ''UTF8''', :'db', :'user'); END IF; END $$;"
 
 echo "Granting privileges on '$DB' to '$USER'..."
-run_psql -v db="$DB" -v user="$USER" -c "ALTER DATABASE :\"db\" OWNER TO :\"user\"; GRANT ALL PRIVILEGES ON DATABASE :\"db\" TO :\"user\";"
+run_psql -v db="$DB" -v user="$USER" -c \
+  "DO $$ BEGIN EXECUTE format('ALTER DATABASE %I OWNER TO %I', :'db', :'user'); EXECUTE format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :'db', :'user'); END $$;"
 
 cat <<EOF
 
