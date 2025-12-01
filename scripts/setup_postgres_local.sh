@@ -25,37 +25,27 @@ run_psql() {
   fi
 }
 
+quote_ident() { sed 's/"/""/g' <<<"$1"; }
+quote_literal() { sed "s/'/''/g" <<<"$1"; }
+
+ROLE_IDENT="\"$(quote_ident "$USER")\""
+ROLE_LIT="'$(quote_literal "$USER")'"
+DB_IDENT="\"$(quote_ident "$DB")\""
+DB_LIT="'$(quote_literal "$DB")'"
+PASS_LIT="'$(quote_literal "$PASS")'"
+
 echo "Ensuring role '$USER' exists..."
-run_psql -v user="$USER" -v pass="$PASS" <<'SQL'
-DO $do$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = :'user') THEN
-    EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', :"user", :"pass");
-  END IF;
-END
-$do$;
-SQL
+if [[ -z "$(run_psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = $ROLE_LIT" 2>/dev/null || true)" ]]; then
+  run_psql -c "CREATE ROLE $ROLE_IDENT LOGIN PASSWORD $PASS_LIT;"
+fi
 
 echo "Ensuring database '$DB' exists (owned by '$USER')..."
-run_psql -v db="$DB" -v user="$USER" <<'SQL'
-DO $do$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db') THEN
-    EXECUTE format('CREATE DATABASE %I WITH OWNER %I ENCODING ''UTF8''', :"db", :"user");
-  END IF;
-END
-$do$;
-SQL
+if [[ -z "$(run_psql -tAc "SELECT 1 FROM pg_database WHERE datname = $DB_LIT" 2>/dev/null || true)" ]]; then
+  run_psql -c "CREATE DATABASE $DB_IDENT WITH OWNER $ROLE_IDENT ENCODING 'UTF8';"
+fi
 
 echo "Granting privileges on '$DB' to '$USER'..."
-run_psql -v db="$DB" -v user="$USER" <<'SQL'
-DO $do$
-BEGIN
-  EXECUTE format('ALTER DATABASE %I OWNER TO %I', :"db", :"user");
-  EXECUTE format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', :"db", :"user");
-END
-$do$;
-SQL
+run_psql -c "ALTER DATABASE $DB_IDENT OWNER TO $ROLE_IDENT; GRANT ALL PRIVILEGES ON DATABASE $DB_IDENT TO $ROLE_IDENT;"
 
 cat <<EOF
 
