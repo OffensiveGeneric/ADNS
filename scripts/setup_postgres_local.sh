@@ -27,11 +27,11 @@ run_psql() {
 
 echo "Ensuring role '$USER' exists..."
 run_psql -v user="$USER" -v pass="$PASS" -c \
-  "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = :'user') THEN EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', :'user', :'pass'); END IF; END $$;"
+  "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = format('%s', :'user')) THEN EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', :'user', :'pass'); END IF; END $$;"
 
 echo "Ensuring database '$DB' exists (owned by '$USER')..."
 run_psql -v db="$DB" -v user="$USER" -c \
-  "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db') THEN EXECUTE format('CREATE DATABASE %I WITH OWNER %I ENCODING ''UTF8''', :'db', :'user'); END IF; END $$;"
+  "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_database WHERE datname = format('%s', :'db')) THEN EXECUTE format('CREATE DATABASE %I WITH OWNER %I ENCODING ''UTF8''', :'db', :'user'); END IF; END $$;"
 
 echo "Granting privileges on '$DB' to '$USER'..."
 run_psql -v db="$DB" -v user="$USER" -c \
