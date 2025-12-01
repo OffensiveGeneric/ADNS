@@ -20,7 +20,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-MAX_FLOWS = 200  # keep last N flows when responding to dashboard clients
+MAX_FLOWS = 400  # keep last N flows when responding to dashboard clients
 FLOW_RETENTION_MINUTES = int(os.environ.get("ADNS_FLOW_RETENTION_MINUTES", "30"))
 FLOW_RETENTION_MAX_ROWS = int(os.environ.get("ADNS_FLOW_RETENTION_MAX_ROWS", "5000"))
 
@@ -153,15 +153,15 @@ simulation_detector = DetectionEngine()
 SIMULATION_TYPES = {
     "botnet_flood": {
         "label": "IoT botnet flood",
-        "default_count": 60,
+        "default_count": 200,
     },
     "data_exfiltration": {
         "label": "Data exfiltration burst",
-        "default_count": 30,
+        "default_count": 120,
     },
     "port_scan": {
         "label": "Stealthy port scan",
-        "default_count": 90,
+        "default_count": 240,
     },
 }
 
@@ -193,11 +193,11 @@ def generate_attack_flows(kind: str, count: int) -> list[Flow]:
             "src_port": src_port,
             "dst_port": dst_port,
             "service": service_hint or proto.lower(),
-            "duration": rng.uniform(0.25, 3.0),
+            "duration": rng.uniform(2.0, 15.0),
             "src_bytes": total,
             "dst_bytes": reply,
-            "src_pkts": max(1, total // 900),
-            "dst_pkts": max(1, reply // 900),
+            "src_pkts": max(3, total // 600),
+            "dst_pkts": max(3, reply // 600),
         }
 
     def _add_flow(ts_offset: float, src: str, dst: str, proto: str, byte_count: int, extra: dict | None = None) -> None:
@@ -215,16 +215,16 @@ def generate_attack_flows(kind: str, count: int) -> list[Flow]:
         if kind == "botnet_flood":
             dst = rng.choice(["198.51.100.42", "198.51.100.47", "203.0.113.10"])
             src = _pattern_ip("10.x.x.x", rng)
-            bytes_val = rng.randint(60_000, 250_000)
-            offset = rng.uniform(0, 25)
+            bytes_val = rng.randint(120_000, 480_000)
+            offset = rng.uniform(0, 120)
             src_port = rng.randint(1024, 65000)
             extra = _make_extra("tcp", src_port, 80, bytes_val, "http")
             _add_flow(offset, src, dst, "TCP", bytes_val, extra)
         elif kind == "data_exfiltration":
             src = rng.choice(["10.0.5.33", "10.0.5.34"])
             dst = _pattern_ip("203.0.113.x", rng)
-            bytes_val = rng.randint(120_000, 320_000)
-            offset = rng.uniform(0, 40)
+            bytes_val = rng.randint(180_000, 520_000)
+            offset = rng.uniform(0, 180)
             src_port = rng.randint(20000, 60000)
             extra = _make_extra("tcp", src_port, 443, bytes_val, "https")
             _add_flow(offset, src, dst, "TCP", bytes_val, extra)
@@ -233,7 +233,7 @@ def generate_attack_flows(kind: str, count: int) -> list[Flow]:
             dst = f"192.168.{rng.randint(1, 10)}.{(i % 200) + 1}"
             proto = rng.choice(["UDP", "TCP"])
             bytes_val = rng.randint(800, 5000)
-            offset = rng.uniform(0, 60)
+            offset = rng.uniform(0, 240)
             dst_port = rng.randint(1, 1024)
             src_port = rng.randint(20000, 65000)
             extra = _make_extra(proto.lower(), src_port, dst_port, bytes_val, proto.lower())
