@@ -597,7 +597,7 @@ def flows():
     if recent:
         payload = []
         for idx, f in enumerate(recent):
-            payload.append(flow_to_dict(f, allow_fallback=idx < 120))
+            payload.append(flow_to_dict(f, allow_fallback=idx < 30))
         return jsonify(payload)
 
     demo_flows = [
@@ -648,7 +648,7 @@ def anomalies():
     scores = []
     for idx, flow in enumerate(data):
         base = latest_prediction_score(flow)
-        if base > 0 or idx >= 120:
+        if base > 0 or idx >= 30:
             scores.append(base)
             continue
         try:
