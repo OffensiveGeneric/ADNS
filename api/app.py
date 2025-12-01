@@ -380,18 +380,13 @@ def build_flow_extra(rec: dict) -> dict | None:
     return extra or None
 
 
-def flow_to_dict(flow: Flow, allow_fallback: bool = False) -> dict:
+def flow_to_dict(flow: Flow) -> dict:
     latest_label = None
     pred = flow.predictions.order_by(Prediction.created_at.desc()).first()
     score = 0.0
     if pred:
         latest_label = pred.label
         score = pred.score or 0.0
-    elif allow_fallback:
-        try:
-            score, latest_label = simulation_detector.predict(db.session, flow)
-        except Exception:
-            score = 0.0
 
     return {
         "id": flow.id,
@@ -595,9 +590,7 @@ def simulate_attack():
 def flows():
     recent = get_recent_flows()
     if recent:
-        payload = []
-        for idx, f in enumerate(recent):
-            payload.append(flow_to_dict(f, allow_fallback=idx < 30))
+        payload = [flow_to_dict(f) for f in recent]
         return jsonify(payload)
 
     demo_flows = [
@@ -645,17 +638,7 @@ def anomalies():
         }
         return jsonify(demo_stats)
 
-    scores = []
-    for idx, flow in enumerate(data):
-        base = latest_prediction_score(flow)
-        if base > 0 or idx >= 30:
-            scores.append(base)
-            continue
-        try:
-            fallback_score, _ = simulation_detector.predict(db.session, flow)
-            scores.append(float(fallback_score))
-        except Exception:
-            scores.append(0.0)
+    scores = [latest_prediction_score(f) for f in data]
     total = len(scores)
     max_score = max(scores) if scores else 0.0
     anomaly_count = sum(1 for s in scores if s > 0.9)
