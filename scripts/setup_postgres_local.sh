@@ -32,7 +32,7 @@ echo "Ensuring database '$DB' exists (owned by '$USER')..."
 run_psql -c "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB') THEN CREATE DATABASE $DB WITH OWNER $USER ENCODING 'UTF8'; END IF; END $$;"
 
 echo "Granting privileges on '$DB' to '$USER'..."
-run_psql -c "ALTER DATABASE $DB OWNER TO '$USER'; GRANT ALL PRIVILEGES ON DATABASE $DB TO '$USER';"
+run_psql -c "ALTER DATABASE $DB OWNER TO $USER; GRANT ALL PRIVILEGES ON DATABASE $DB TO $USER;"
 
 cat <<EOF
 
