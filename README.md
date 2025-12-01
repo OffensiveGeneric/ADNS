@@ -29,10 +29,17 @@ Generated datasets live under `data/`, and derived artifacts (clean CSVs, model 
 ### One-command bootstrap
 From the repo root: `npm run bootstrap` — dispatches to the right setup script (`setup_local.sh` on macOS/Linux, `setup_local.ps1` on Windows).
 
+### Database setup (PostgreSQL or SQLite)
+- **Fastest path (no install)**: set `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db` in `.env` and skip PostgreSQL entirely. Good for demos and development.
+- **Local PostgreSQL**: install Postgres, start the service, then run one of the helper scripts to create the `adns` database/user (defaults to password `adns_password`):
+  - macOS/Linux: `./scripts/setup_postgres_local.sh` (requires `psql`; uses `sudo -u postgres` when available).
+  - Windows (PowerShell): `pwsh ./scripts/setup_postgres_local.ps1` (prompts for the postgres superuser password if `PGPASSWORD` is unset). Install Postgres with `winget install -e --id PostgreSQL.PostgreSQL` or Chocolatey if you don't have it yet.
+- **Verify**: `psql "postgresql://adns:adns_password@127.0.0.1:5432/adns" -c "select 1;"`. Update `.env` with the URI the scripts print.
+
 ### macOS / Linux setup (detailed)
 1) Install prerequisites: Python 3.9+, Node.js 18+, Git, `tshark` (`brew install wireshark` on macOS; `sudo apt-get install tshark` on Ubuntu), plus PostgreSQL/Redis if desired (or plan to use SQLite).  
 2) Clone the repo and run `./scripts/setup_local.sh` to create `.venv`, install API/agent deps, and install frontend node_modules.  
-3) Copy `.env.example` to `.env` if the script didn’t already; set `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db` for a no-Postgres setup.  
+3) Copy `.env.example` to `.env` if the script didn’t already; set `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db` for a no-Postgres setup or run `./scripts/setup_postgres_local.sh` to provision a local Postgres DB/user.  
 4) Start services in separate terminals:  
    - API: `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && cd api && flask run`  
    - Worker (optional): `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && python api/worker.py`  
@@ -43,7 +50,7 @@ From the repo root: `npm run bootstrap` — dispatches to the right setup script
 Option A — native PowerShell (simpler, lighter):
 1) Install Python 3.9+, Node.js 18+, Git, and Wireshark (ensure `tshark` is on PATH; Npcap installs with Wireshark).  
 2) From PowerShell, run `pwsh ./scripts/setup_local.ps1` to create `.venv`, install Python deps, and run `npm install`.  
-3) Edit `.env` (copied automatically if missing); set `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db` if skipping Postgres.  
+3) Edit `.env` (copied automatically if missing); set `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db` if skipping Postgres, or install Postgres (`winget install -e --id PostgreSQL.PostgreSQL`) and run `pwsh ./scripts/setup_postgres_local.ps1` to create the `adns` database/user before starting the API.  
 4) Start services in separate terminals (PowerShell):  
    - API: `.\.venv\Scripts\Activate.ps1; set FLASK_APP=app.py; cd api; flask run`  
    - Worker (optional): `.\.venv\Scripts\Activate.ps1; python api/worker.py`  
@@ -61,6 +68,7 @@ Option B — WSL2 (closest to prod parity):
 1) Install system deps: PostgreSQL (or use SQLite via `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db`), Redis (optional; inline scoring fallback works if Redis is down), `tshark`, Python 3.9+, Node.js 18+.  
 2) Bootstrap the repo: `./scripts/setup_local.sh` on macOS/Linux or `pwsh ./scripts/setup_local.ps1` on Windows (creates `.venv`, installs API+agent deps, runs `npm install`, and copies `.env.example` to `.env` if missing).  
 3) Edit `.env` as needed:
+   - Want Postgres? Install it, run `./scripts/setup_postgres_local.sh` (or `pwsh ./scripts/setup_postgres_local.ps1` on Windows) to create the `adns` database/user, then set `SQLALCHEMY_DATABASE_URI` to the printed URL.
    - `SQLALCHEMY_DATABASE_URI` can be set to `sqlite:///./adns.db` for a zero-install database.
    - `VITE_API_URL` only if the frontend will call the API on a different origin.
    - `API_URL`, `INTERFACE`, `BATCH_SIZE`, etc. to control the capture agent.

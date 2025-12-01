@@ -57,3 +57,4 @@ Use this page to remind yourself (or other assistants) what lives where in the A
 - Secrets/DSNs live in `.env` (gitignored). Rotate any placeholder passwords before sharing images or demos.
 - When changing schema or models, run `init_db()` (or migrate) before restarting Gunicorn/RQ so `/ingest` never sees missing columns. Restart the worker after updating model artifacts so the DetectionEngine reloads them.
 - **After any implementation change**: restart the relevant service(s) you touched (e.g., `adns.service`, `adns-worker.service`, `adns-agent.service`, or reload the frontend via Nginx) and update/push the GitHub repo so deployment matches source.
+- **Git access**: an SSH key is available for pushes; fingerprint `SHA256:+rRkOHASSedkJHfy85SEJEhjs8k7JnpKYybLWGFGM6A`.
