@@ -17,6 +17,7 @@ import {
 import "./App.css";
 
 const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+// If no base is provided, rely on Vite dev proxy (/api -> http://127.0.0.1:5000)
 const api = axios.create({ baseURL: apiBase });
 
 const SIM_ATTACKS = [
