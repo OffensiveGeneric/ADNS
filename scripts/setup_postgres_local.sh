@@ -29,7 +29,7 @@ echo "Ensuring role '$USER' exists..."
 run_psql -v user="$USER" -v pass="$PASS" <<'SQL'
 DO $do$
 BEGIN
-  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = format('%s', :"user")) THEN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = :'user') THEN
     EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', :"user", :"pass");
   END IF;
 END
@@ -40,7 +40,7 @@ echo "Ensuring database '$DB' exists (owned by '$USER')..."
 run_psql -v db="$DB" -v user="$USER" <<'SQL'
 DO $do$
 BEGIN
-  IF NOT EXISTS (SELECT FROM pg_database WHERE datname = format('%s', :"db")) THEN
+  IF NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db') THEN
     EXECUTE format('CREATE DATABASE %I WITH OWNER %I ENCODING ''UTF8''', :"db", :"user");
   END IF;
 END
