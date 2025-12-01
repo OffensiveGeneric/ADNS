@@ -21,10 +21,42 @@ Generated datasets live under `data/`, and derived artifacts (clean CSVs, model 
 
 ## Quickstart
 
+### Cross-platform bootstrap at a glance
+- **macOS/Linux**: Install Python 3.9+, Node.js 18+, npm, Git, `tshark`, plus PostgreSQL/Redis if you want full parity (or use SQLite by setting `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db`). Then run `./scripts/setup_local.sh`.
+- **Windows (native PowerShell)**: Install Python 3.9+, Node.js 18+, Git, and Wireshark (provides `tshark`; the installer includes Npcap so captures work). PostgreSQL/Redis are optional locally; set `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db` for zero-install DB. Then run `pwsh ./scripts/setup_local.ps1`.
+- **Windows via WSL2 (recommended for packet capture parity)**: Install an Ubuntu distro, then follow the Linux flow (`sudo apt-get install -y python3 python3-venv nodejs npm tshark postgresql redis-server` as needed) and run `./scripts/setup_local.sh`.
+
+### macOS / Linux setup (detailed)
+1) Install prerequisites: Python 3.9+, Node.js 18+, Git, `tshark` (`brew install wireshark` on macOS; `sudo apt-get install tshark` on Ubuntu), plus PostgreSQL/Redis if desired (or plan to use SQLite).  
+2) Clone the repo and run `./scripts/setup_local.sh` to create `.venv`, install API/agent deps, and install frontend node_modules.  
+3) Copy `.env.example` to `.env` if the script didn’t already; set `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db` for a no-Postgres setup.  
+4) Start services in separate terminals:  
+   - API: `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && cd api && flask run`  
+   - Worker (optional): `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && python api/worker.py`  
+   - Agent (requires capture privileges): `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && cd agent && sudo ./capture.py`  
+   - Frontend: `cd frontend/adns-frontend && export $(grep -v '^#' ../../.env | xargs) && npm run dev -- --host`
+
+### Windows setup (detailed)
+Option A — native PowerShell (simpler, lighter):
+1) Install Python 3.9+, Node.js 18+, Git, and Wireshark (ensure `tshark` is on PATH; Npcap installs with Wireshark).  
+2) From PowerShell, run `pwsh ./scripts/setup_local.ps1` to create `.venv`, install Python deps, and run `npm install`.  
+3) Edit `.env` (copied automatically if missing); set `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db` if skipping Postgres.  
+4) Start services in separate terminals (PowerShell):  
+   - API: `.\.venv\Scripts\Activate.ps1; set FLASK_APP=app.py; cd api; flask run`  
+   - Worker (optional): `.\.venv\Scripts\Activate.ps1; python api/worker.py`  
+   - Agent (requires elevated shell for capture): `.\.venv\Scripts\Activate.ps1; set API_URL=http://127.0.0.1:5000/ingest; python agent/capture.py`  
+   - Frontend: `cd frontend/adns-frontend; npm run dev -- --host`
+
+Option B — WSL2 (closest to prod parity):
+1) Install an Ubuntu distro via WSL2, then `sudo apt-get install -y python3 python3-venv nodejs npm tshark` and PostgreSQL/Redis if desired.  
+2) Clone the repo inside WSL and run `./scripts/setup_local.sh`.  
+3) Follow the macOS/Linux service commands above.  
+4) If using Windows browser + WSL API/frontend, ensure `VITE_API_URL` points at the WSL IP/port you expose.
+
 ### Run locally to monitor your own traffic
 
 1) Install system deps: PostgreSQL (or use SQLite via `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db`), Redis (optional; inline scoring fallback works if Redis is down), `tshark`, Python 3.9+, Node.js 18+.  
-2) Bootstrap the repo: `./scripts/setup_local.sh` (creates `.venv`, installs API+agent deps, runs `npm install`, and copies `.env.example` to `.env` if missing).  
+2) Bootstrap the repo: `./scripts/setup_local.sh` on macOS/Linux or `pwsh ./scripts/setup_local.ps1` on Windows (creates `.venv`, installs API+agent deps, runs `npm install`, and copies `.env.example` to `.env` if missing).  
 3) Edit `.env` as needed:
    - `SQLALCHEMY_DATABASE_URI` can be set to `sqlite:///./adns.db` for a zero-install database.
    - `VITE_API_URL` only if the frontend will call the API on a different origin.
@@ -35,6 +67,7 @@ Generated datasets live under `data/`, and derived artifacts (clean CSVs, model 
    - Worker (optional if relying on inline scoring): `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && python api/worker.py`
    - Agent (needs tshark + capture privileges): `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && cd agent && sudo ./capture.py`
    - Frontend: `cd frontend/adns-frontend && export $(grep -v '^#' ../../.env | xargs) && npm run dev -- --host`
+   - On Windows/PowerShell: use `.\.venv\Scripts\Activate.ps1` instead of `source ...`, drop `sudo`, and run the agent from an elevated shell so `tshark` can capture.
 
 ### 0. Dependencies
 
