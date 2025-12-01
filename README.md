@@ -26,6 +26,9 @@ Generated datasets live under `data/`, and derived artifacts (clean CSVs, model 
 - **Windows (native PowerShell)**: Install Python 3.9+, Node.js 18+, Git, and Wireshark (provides `tshark`; the installer includes Npcap so captures work). PostgreSQL/Redis are optional locally; set `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db` for zero-install DB. Then run `pwsh ./scripts/setup_local.ps1`.
 - **Windows via WSL2 (recommended for packet capture parity)**: Install an Ubuntu distro, then follow the Linux flow (`sudo apt-get install -y python3 python3-venv nodejs npm tshark postgresql redis-server` as needed) and run `./scripts/setup_local.sh`.
 
+### One-command bootstrap
+From the repo root: `npm run bootstrap` — dispatches to the right setup script (`setup_local.sh` on macOS/Linux, `setup_local.ps1` on Windows).
+
 ### macOS / Linux setup (detailed)
 1) Install prerequisites: Python 3.9+, Node.js 18+, Git, `tshark` (`brew install wireshark` on macOS; `sudo apt-get install tshark` on Ubuntu), plus PostgreSQL/Redis if desired (or plan to use SQLite).  
 2) Clone the repo and run `./scripts/setup_local.sh` to create `.venv`, install API/agent deps, and install frontend node_modules.  
