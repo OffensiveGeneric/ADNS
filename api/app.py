@@ -153,15 +153,15 @@ simulation_detector = DetectionEngine()
 SIMULATION_TYPES = {
     "botnet_flood": {
         "label": "IoT botnet flood",
-        "default_count": 200,
+        "default_count": 120,
     },
     "data_exfiltration": {
         "label": "Data exfiltration burst",
-        "default_count": 120,
+        "default_count": 90,
     },
     "port_scan": {
         "label": "Stealthy port scan",
-        "default_count": 240,
+        "default_count": 160,
     },
 }
 
@@ -215,16 +215,16 @@ def generate_attack_flows(kind: str, count: int) -> list[Flow]:
         if kind == "botnet_flood":
             dst = rng.choice(["198.51.100.42", "198.51.100.47", "203.0.113.10"])
             src = _pattern_ip("10.x.x.x", rng)
-            bytes_val = rng.randint(120_000, 480_000)
-            offset = rng.uniform(0, 120)
+            bytes_val = rng.randint(120_000, 420_000)
+            offset = rng.uniform(0, 90)
             src_port = rng.randint(1024, 65000)
             extra = _make_extra("tcp", src_port, 80, bytes_val, "http")
             _add_flow(offset, src, dst, "TCP", bytes_val, extra)
         elif kind == "data_exfiltration":
             src = rng.choice(["10.0.5.33", "10.0.5.34"])
             dst = _pattern_ip("203.0.113.x", rng)
-            bytes_val = rng.randint(180_000, 520_000)
-            offset = rng.uniform(0, 180)
+            bytes_val = rng.randint(180_000, 450_000)
+            offset = rng.uniform(0, 120)
             src_port = rng.randint(20000, 60000)
             extra = _make_extra("tcp", src_port, 443, bytes_val, "https")
             _add_flow(offset, src, dst, "TCP", bytes_val, extra)
@@ -233,7 +233,7 @@ def generate_attack_flows(kind: str, count: int) -> list[Flow]:
             dst = f"192.168.{rng.randint(1, 10)}.{(i % 200) + 1}"
             proto = rng.choice(["UDP", "TCP"])
             bytes_val = rng.randint(800, 5000)
-            offset = rng.uniform(0, 240)
+            offset = rng.uniform(0, 180)
             dst_port = rng.randint(1, 1024)
             src_port = rng.randint(20000, 65000)
             extra = _make_extra(proto.lower(), src_port, dst_port, bytes_val, proto.lower())
@@ -544,7 +544,7 @@ def simulate_attack():
         count = int(requested_count) if requested_count is not None else default_count
     except (TypeError, ValueError):
         return jsonify({"error": "count must be an integer"}), 400
-    count = max(5, min(count, 400))
+    count = max(5, min(count, 250))
 
     flows = generate_attack_flows(attack_type, count)
     for flow in flows:
