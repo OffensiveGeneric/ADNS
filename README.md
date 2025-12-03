@@ -63,6 +63,13 @@ Option B — WSL2 (closest to prod parity):
 3) Follow the macOS/Linux service commands above.  
 4) If using Windows browser + WSL API/frontend, ensure `VITE_API_URL` points at the WSL IP/port you expose.
 
+## Docker Compose (dev stack)
+- Build and run API, worker, frontend, Postgres, and Redis: `docker compose up --build` (from repo root). API on `http://localhost:5000`, frontend on `http://localhost:8080`.
+- Frontend build arg: override `VITE_API_URL` if you want a different API origin (default `http://localhost:5000`); e.g., `docker compose build --build-arg VITE_API_URL=http://api:5000 frontend`.
+- Optional capture agent: `docker compose --profile agent up --build agent` (Linux only, uses `network_mode: host` and `NET_ADMIN` so `tshark` can see host traffic). On macOS/Windows, run the agent on the host instead and point `API_URL` at `http://localhost:5000/ingest`.
+- Persistent Postgres data lives in the `pgdata` volume; remove it with `docker volume rm adns_pgdata` if you need a clean slate.
+- Redis runs in-memory; queueing can be disabled by stopping the worker container (API will fall back to inline scoring).
+
 ### Run locally to monitor your own traffic
 
 1) Install system deps: PostgreSQL (or use SQLite via `SQLALCHEMY_DATABASE_URI=sqlite:///./adns.db`), Redis (optional; inline scoring fallback works if Redis is down), `tshark`, Python 3.9+, Node.js 18+.  

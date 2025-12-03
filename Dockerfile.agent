@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \ 
+    && apt-get install -y --no-install-recommends tshark \ 
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /agent
+COPY agent/requirements.txt /agent/requirements.txt
+RUN pip install --no-cache-dir -r /agent/requirements.txt
+COPY agent /agent
+
+CMD ["python", "capture.py"]

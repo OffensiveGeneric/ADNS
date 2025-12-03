@@ -1,0 +1,112 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: adns
+      POSTGRES_PASSWORD: adns_password
+      POSTGRES_DB: adns
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adns -d adns"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      FLASK_APP: app.py
+      SQLALCHEMY_DATABASE_URI: postgresql://adns:adns_password@postgres:5432/adns
+      ADNS_REDIS_URL: redis://redis:6379/0
+      ADNS_RQ_QUEUE: flow_scores
+      ADNS_RQ_JOB_TIMEOUT: 120
+      ADNS_RQ_BATCH_SIZE: 100
+      ADNS_SCORING_FETCH_CHUNK: 256
+      ADNS_FLOW_RETENTION_MINUTES: 30
+      ADNS_FLOW_RETENTION_MAX_ROWS: 5000
+      ADNS_RDNS_ENABLED: "true"
+      ADNS_RDNS_TIMEOUT_MS: 500
+      ADNS_RDNS_CACHE_TTL: 900
+      ADNS_RDNS_CACHE_SIZE: 500
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: ["python", "worker.py"]
+    environment:
+      FLASK_APP: app.py
+      SQLALCHEMY_DATABASE_URI: postgresql://adns:adns_password@postgres:5432/adns
+      ADNS_REDIS_URL: redis://redis:6379/0
+      ADNS_RQ_QUEUE: flow_scores
+      ADNS_RQ_JOB_TIMEOUT: 120
+      ADNS_RQ_BATCH_SIZE: 100
+      ADNS_SCORING_FETCH_CHUNK: 256
+      ADNS_FLOW_RETENTION_MINUTES: 30
+      ADNS_FLOW_RETENTION_MAX_ROWS: 5000
+      ADNS_RDNS_ENABLED: "true"
+      ADNS_RDNS_TIMEOUT_MS: 500
+      ADNS_RDNS_CACHE_TTL: 900
+      ADNS_RDNS_CACHE_SIZE: 500
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: frontend/adns-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:5000
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  agent:
+    profiles: ["agent"]
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    environment:
+      API_URL: http://api:5000/ingest
+      INTERFACE: eth0
+      BATCH_SIZE: 50
+      POST_INTERVAL: 2.0
+      RETRY_DELAY: 3.0
+    network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:
