@@ -69,6 +69,9 @@ Option B — WSL2 (closest to prod parity):
 - Optional capture agent: `docker compose --profile agent up --build agent` (Linux only, uses `network_mode: host` and `NET_ADMIN` so `tshark` can see host traffic). On macOS/Windows, run the agent on the host instead and point `API_URL` at `http://localhost:5000/ingest`.
 - Persistent Postgres data lives in the `pgdata` volume; remove it with `docker volume rm adns_pgdata` if you need a clean slate.
 - Redis runs in-memory; queueing can be disabled by stopping the worker container (API will fall back to inline scoring).
+- Common fixes:
+  - macOS AirPlay can own port 5000; if `curl localhost:5000/health` returns 403 AirTunes, change the API port mapping (e.g., `5100:5000`), restart compose, and point agent/frontend at the new port.
+  - If the UI cannot reach the API, rebuild the frontend with the right base: `docker compose build --no-cache --build-arg VITE_API_URL=http://127.0.0.1:5000 frontend && docker compose up -d frontend` (or `VITE_API_URL=""` to use the nginx `/api` proxy). Verify with `curl http://localhost:8080/api/health`.
 
 ### Run locally to monitor your own traffic
 
@@ -86,6 +89,8 @@ Option B — WSL2 (closest to prod parity):
    - Agent (needs tshark + capture privileges): `source .venv/bin/activate && export $(grep -v '^#' .env | xargs) && cd agent && sudo ./capture.py`
    - Frontend: `cd frontend/adns-frontend && export $(grep -v '^#' ../../.env | xargs) && npm run dev -- --host`
    - On Windows/PowerShell: use `.\.venv\Scripts\Activate.ps1` instead of `source ...`, drop `sudo`, and run the agent from an elevated shell so `tshark` can capture.
+   - On WSL with Docker Desktop: `sudo apt-get install -y tshark` inside WSL, then run the agent with explicit paths: `API_URL=http://127.0.0.1:5000/ingest TSHARK_BIN=/usr/bin/tshark INTERFACE=eth0 sudo .venv/bin/python agent/capture.py`. If tshark permissions are already set, drop `sudo`.
+   - On macOS with Docker: avoid AirPlay port 5000 conflicts by using the mapped API port (e.g., 5001). Run the agent with preserved envs: `sudo env TSHARK_BIN=/usr/local/bin/tshark API_URL=http://127.0.0.1:5001/ingest INTERFACE=en0 .venv/bin/python agent/capture.py`. If you’ve run Wireshark’s ChmodBPF helper, you can omit `sudo`.
 
 ### 0. Dependencies
 
