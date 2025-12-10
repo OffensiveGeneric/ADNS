@@ -31,6 +31,7 @@ docker compose up --build -d          # API:5000, Frontend:8080, Postgres, Redis
 - Frontend: `http://localhost:8080`
 - API health: `curl http://localhost:5000/health`
 - Demo traffic: `curl -X POST http://localhost:5000/simulate -H 'Content-Type: application/json' -d '{"type":"botnet_flood","count":50}'`
+- Streaming demo traffic (background): `curl -X POST http://localhost:5000/simulate -H 'Content-Type: application/json' -d '{"type":"botnet_flood","duration_seconds":120,"interval_seconds":1}'`
 - Live capture (Linux only): `docker compose --profile agent up -d agent` (uses host network + NET_ADMIN; set `INTERFACE`/`API_URL` in `docker-compose.yml` if needed).
 
 ### Local dev (bare metal, optional)
@@ -96,6 +97,8 @@ The API exposes:
 - `POST /ingest` — ingest flow JSON (single object or list).
 - `GET /flows` & `GET /anomalies` — dashboard data feeds.
 - `POST /simulate` — synthesize attack traffic (used by the UI buttons).
+  - Accepts `count` for one-shot batches.
+  - Accepts `duration_seconds` (and optional `interval_seconds`, default 1.0s) to stream batches in the background for the given duration.
 
 On first run `init_db()` creates tables and adds the `flows.extra` JSON column so the agent’s rich metadata can be stored immediately.
 
