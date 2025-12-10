@@ -9,6 +9,8 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceLine,
+  Scatter,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -147,6 +149,8 @@ export default function App() {
   const chartData = sortedFlows.map((f, i) => ({
     index: i,
     score: f.score,
+    severity: severityFromLabel(f.label, f.score),
+    label: f.label,
   }));
 
   const timelineData = useMemo(() => {
@@ -260,6 +264,11 @@ export default function App() {
                 dot={false}
                 isAnimationActive={false}
               />
+              <Scatter
+                data={timelineData.filter((d) => d.severity !== "normal")}
+                fill="#b91c1c"
+                shape="circle"
+              />
             </AreaChart>
           </ResponsiveContainer>
         )}
@@ -344,11 +353,33 @@ export default function App() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="index" />
               <YAxis domain={[0, 1]} />
-              <Tooltip />
+              <Tooltip
+                formatter={(value, _name, { payload }) => [
+                  (Number(value) || 0).toFixed(3),
+                  payload?.severity || "score",
+                ]}
+              />
+              <ReferenceLine y={0.9} stroke="#b91c1c" strokeDasharray="4 4" />
+              <ReferenceLine y={0.6} stroke="#ea580c" strokeDasharray="4 4" />
               <Line
                 type="monotone"
                 dataKey="score"
-                dot={false}
+                dot={({ payload }) => (
+                  <circle
+                    r={4}
+                    fill={threatColor(payload.severity)}
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                  />
+                )}
+                activeDot={({ payload }) => (
+                  <circle
+                    r={5}
+                    fill={threatColor(payload.severity)}
+                    stroke="#111827"
+                    strokeWidth={1}
+                  />
+                )}
                 strokeWidth={2}
               />
             </LineChart>
