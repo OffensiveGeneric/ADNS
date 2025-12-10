@@ -372,8 +372,11 @@ class MetaEnsembleModel:
 
     CLASS_LABELS = {
         0: "normal",
-        1: "attack_type_2",
-        2: "attack_type_3",
+        1: "attack",
+        2: "scanning",
+        3: "dos",
+        4: "injection",
+        5: "ddos",
     }
 
     def __init__(self, model_path: str | os.PathLike | None = None) -> None:

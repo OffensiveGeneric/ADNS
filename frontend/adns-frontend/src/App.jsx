@@ -55,6 +55,9 @@ const severityFromLabel = (label, score) => {
   if (normalized === "normal") {
     return "normal";
   }
+  if (["scanning", "dos", "ddos", "injection"].includes(normalized)) {
+    return "anomaly";
+  }
   if (normalized.includes("attack")) {
     return "anomaly";
   }
