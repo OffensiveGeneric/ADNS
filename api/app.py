@@ -225,15 +225,15 @@ simulation_detector = DetectionEngine()
 SIMULATION_TYPES = {
     "botnet_flood": {
         "label": "IoT botnet flood",
-        "default_count": 120,
+        "default_count": 40,
     },
     "data_exfiltration": {
         "label": "Data exfiltration burst",
-        "default_count": 90,
+        "default_count": 30,
     },
     "port_scan": {
         "label": "Stealthy port scan",
-        "default_count": 160,
+        "default_count": 60,
     },
 }
 

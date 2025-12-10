@@ -397,7 +397,20 @@ class MetaEnsembleModel:
 
         self.models: dict[str, object] = {}
         if "xgboost" in payload:
-            self.models["xgboost"] = payload["xgboost"]
+            xgb_model = payload["xgboost"]
+            # Some serialized bundles reference fields that newer xgboost drops;
+            # set safe defaults so get_params/predict keep working.
+            for attr, default in {
+                "use_label_encoder": False,
+                "gpu_id": None,
+                "predictor": "auto",
+            }.items():
+                if not hasattr(xgb_model, attr):
+                    try:
+                        setattr(xgb_model, attr, default)
+                    except Exception:  # pragma: no cover
+                        pass
+            self.models["xgboost"] = xgb_model
         if "extra_trees" in payload:
             self.models["extra_trees"] = payload["extra_trees"]
 
