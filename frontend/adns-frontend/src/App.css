@@ -145,6 +145,36 @@ body {
   padding-bottom: 6px;
 }
 
+.blocked-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.blocked-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.blocked-list .ip {
+  font-weight: 700;
+  color: #111827;
+}
+
+.blocked-list .ts {
+  color: #6b7280;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
 .anomaly-panel {
   height: 100%;
 }

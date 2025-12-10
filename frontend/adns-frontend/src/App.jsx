@@ -89,6 +89,7 @@ export default function App() {
   const [killSwitch, setKillSwitch] = useState(false);
   const [killBusy, setKillBusy] = useState(false);
   const [blockMessage, setBlockMessage] = useState("");
+  const [blockedIps, setBlockedIps] = useState([]);
 
   const fetchLatest = useCallback(async () => {
     try {
@@ -98,10 +99,18 @@ export default function App() {
         api.get("/api/anomalies"),
         api.get("/api/anomalous_flows"),
       ]);
+      let blocked = [];
+      try {
+        const blockedRes = await api.get("/api/blocked_ips");
+        blocked = blockedRes.data || [];
+      } catch (err) {
+        console.warn("blocked_ips fetch failed", err);
+      }
       const fetchedFlows = flowsRes.data || [];
       setFlows(fetchedFlows);
       setStats(statsRes.data || null);
       setAnomalous(anomaliesRes.data || []);
+      setBlockedIps(blocked);
     } catch (err) {
       console.error(err);
       setError("Unable to load data from API");
@@ -657,6 +666,27 @@ export default function App() {
                   </tbody>
                 </table>
               </div>
+            )}
+          </section>
+
+          <section className="panel sidebar-panel">
+            <div className="panel-heading">
+              <h3>Blocked IPs</h3>
+              <p>Active OS-level blocks applied via iptables.</p>
+            </div>
+            {blockedIps.length === 0 ? (
+              <p className="empty-state">No blocked IPs.</p>
+            ) : (
+              <ul className="blocked-list">
+                {blockedIps.map((row) => (
+                  <li key={row.ip}>
+                    <span className="ip">{row.ip}</span>
+                    <span className="ts">
+                      {new Date(row.created_at).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
         </aside>
