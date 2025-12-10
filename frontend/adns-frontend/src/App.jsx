@@ -75,6 +75,7 @@ const severityFromLabel = (label, score) => {
 
 export default function App() {
   const [flows, setFlows] = useState([]);
+  const [anomalous, setAnomalous] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -88,13 +89,15 @@ export default function App() {
   const fetchLatest = useCallback(async () => {
     try {
       setError("");
-      const [flowsRes, statsRes] = await Promise.all([
+      const [flowsRes, statsRes, anomaliesRes] = await Promise.all([
         api.get("/api/flows"),
         api.get("/api/anomalies"),
+        api.get("/api/anomalous_flows"),
       ]);
       const fetchedFlows = flowsRes.data || [];
       setFlows(fetchedFlows);
       setStats(statsRes.data || null);
+      setAnomalous(anomaliesRes.data || []);
     } catch (err) {
       console.error(err);
       setError("Unable to load data from API");
@@ -166,13 +169,14 @@ export default function App() {
   }, [flows]);
 
   const anomalousFlows = useMemo(() => {
-    return sortedFlows.filter((flow) => {
+    const source = anomalous.length ? anomalous : sortedFlows;
+    return source.filter((flow) => {
       const severity = severityFromLabel(flow.label, flow.score);
       if (severity !== "normal") return true;
       const s = Number(flow.score) || 0;
       return s >= 0.6;
     });
-  }, [sortedFlows]);
+  }, [anomalous, sortedFlows]);
 
   const visibleFlows = useMemo(() => {
     if (!srcFilter.trim()) {
@@ -480,6 +484,69 @@ export default function App() {
               />
             </LineChart>
           </ResponsiveContainer>
+        )}
+      </section>
+
+      <section className="panel table-panel">
+        <div className="panel-heading">
+          <h3>Anomalous flow list</h3>
+        </div>
+        {anomalousFlows.length === 0 ? (
+          <p className="empty-state">No anomalous flows yet.</p>
+        ) : (
+          <div className="table-wrapper">
+            <table className="flow-table">
+              <thead>
+                <tr>
+                  <Th>Time</Th>
+                  <Th>Source IP</Th>
+                  <Th>Destination IP</Th>
+                  <Th>Proto</Th>
+                  <Th>Bytes</Th>
+                  <Th>Attack Type</Th>
+                  <Th>Actions</Th>
+                  <Th>Score</Th>
+                  <Th>Severity</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {anomalousFlows.map((f, idx) => (
+                  <tr key={`anomaly-${idx}`}>
+                    <Td>{new Date(f.ts).toLocaleString()}</Td>
+                    <Td>{f.src_ip}</Td>
+                    <Td>{f.dst_ip}</Td>
+                    <Td>{f.proto}</Td>
+                    <Td>{f.bytes}</Td>
+                    <Td>{formatLabel(f.label)}</Td>
+                    <Td clamp={false}>
+                      <button
+                        type="button"
+                        className="simulate-btn"
+                        onClick={async () => {
+                          setBlockMessage("");
+                          try {
+                            await api.post("/api/block_ip", { ip: f.src_ip });
+                            setBlockMessage(`Blocked ${f.src_ip}`);
+                          } catch (err) {
+                            console.error("block failed", err);
+                            setBlockMessage("Failed to block IP");
+                          }
+                        }}
+                      >
+                        Block IP
+                      </button>
+                    </Td>
+                    <Td clamp={false}>
+                      <ScoreTag score={f.score} />
+                    </Td>
+                    <Td clamp={false}>
+                      <ThreatBadge label={f.label} score={f.score} />
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

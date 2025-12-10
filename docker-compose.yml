@@ -29,6 +29,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
     environment:
       FLASK_APP: app.py
       SQLALCHEMY_DATABASE_URI: postgresql://adns:adns_password@postgres:5432/adns

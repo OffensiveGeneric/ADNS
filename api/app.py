@@ -1,5 +1,7 @@
 import os
 import random
+import shutil
+import subprocess
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, jsonify, request
@@ -24,6 +26,8 @@ MAX_FLOWS = 400  # keep last N flows when responding to dashboard clients
 FLOW_RETENTION_MINUTES = int(os.environ.get("ADNS_FLOW_RETENTION_MINUTES", "30"))
 FLOW_RETENTION_MAX_ROWS = int(os.environ.get("ADNS_FLOW_RETENTION_MAX_ROWS", "5000"))
 KILL_SWITCH_STATE = {"enabled": False}
+KILL_SWITCH_INTERFACE = os.environ.get("ADNS_KILLSWITCH_INTERFACE", "eth0")
+USE_NSENTER = os.environ.get("ADNS_NSENTER_HOST", "true").lower() not in {"0", "false", "no"}
 
 PROTOCOL_MAP = {
     "1": "ICMP",
@@ -156,6 +160,64 @@ def ensure_prediction_flow_unique_index() -> None:
             conn.execute(stmt)
     except SQLAlchemyError as exc:  # pragma: no cover - defensive
         app.logger.error("failed to create unique predictions index: %s", exc)
+
+
+def _run_cmd(cmd: list[str]) -> tuple[bool, str]:
+    prefixed = cmd
+    if USE_NSENTER and shutil.which("nsenter"):
+        prefixed = ["nsenter", "-t", "1", "-n"] + cmd
+    try:
+        proc = subprocess.run(prefixed, check=True, capture_output=True, text=True)
+        return True, proc.stdout.strip()
+    except FileNotFoundError as exc:
+        app.logger.error("command not found: %s", exc)
+        return False, "command not found"
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        app.logger.error("command failed (%s): %s", prefixed, stderr)
+        return False, stderr or "command failed"
+
+
+def ensure_killswitch_rules_enabled(enabled: bool) -> None:
+    """
+    Toggle iptables DROP rules on the configured interface. Best effort;
+    requires NET_ADMIN on the host/namespace where this runs.
+    """
+    iface = KILL_SWITCH_INTERFACE
+    rules = [
+        ["iptables", "-C", "OUTPUT", "-o", iface, "-j", "DROP"],
+        ["iptables", "-C", "INPUT", "-i", iface, "-j", "DROP"],
+    ]
+    existing = []
+    for rule in rules:
+        ok, _ = _run_cmd(rule)
+        existing.append(ok)
+
+    if enabled:
+        if not existing[0]:
+            _run_cmd(["iptables", "-I", "OUTPUT", "-o", iface, "-j", "DROP"])
+        if not existing[1]:
+            _run_cmd(["iptables", "-I", "INPUT", "-i", iface, "-j", "DROP"])
+    else:
+        if existing[0]:
+            _run_cmd(["iptables", "-D", "OUTPUT", "-o", iface, "-j", "DROP"])
+        if existing[1]:
+            _run_cmd(["iptables", "-D", "INPUT", "-i", iface, "-j", "DROP"])
+
+
+def block_ip_os(ip: str, allow: bool = False) -> tuple[bool, str]:
+    """
+    Apply or remove a DROP rule for the given source IP. Best effort; requires NET_ADMIN.
+    """
+    check = ["iptables", "-C", "INPUT", "-s", ip, "-j", "DROP"]
+    exists, _ = _run_cmd(check)
+    if allow:
+        if exists:
+            return _run_cmd(["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"])
+        return True, "rule absent"
+    if exists:
+        return True, "already blocked"
+    return _run_cmd(["iptables", "-I", "INPUT", "-s", ip, "-j", "DROP"])
 
 
 simulation_detector = DetectionEngine()
@@ -698,7 +760,9 @@ def block_ip():
     else:
         db.session.add(BlockedIP(ip=ip, active=True, created_at=now))
     db.session.commit()
-    return jsonify({"status": "blocked", "ip": ip})
+
+    ok, msg = block_ip_os(ip, allow=False)
+    return jsonify({"status": "blocked", "ip": ip, "os_action": "ok" if ok else "failed", "detail": msg})
 
 
 @app.get("/blocked_ips")
@@ -714,6 +778,7 @@ def killswitch():
         payload = request.get_json(silent=True) or {}
         enabled = bool(payload.get("enabled"))
         KILL_SWITCH_STATE["enabled"] = enabled
+        ensure_killswitch_rules_enabled(enabled)
         return jsonify({"enabled": enabled})
     return jsonify({"enabled": bool(KILL_SWITCH_STATE.get("enabled", False))})
 

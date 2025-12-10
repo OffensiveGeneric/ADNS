@@ -7,6 +7,6 @@ pandas
 numpy
 scikit-learn
 joblib
-xgboost
+xgboost==1.7.6
 redis
 rq
