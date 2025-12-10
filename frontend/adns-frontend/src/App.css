@@ -119,7 +119,7 @@ body {
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(0, 1.7fr) minmax(440px, 1fr);
   gap: 24px;
   align-items: start;
 }
@@ -201,7 +201,7 @@ body {
 
 .flow-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 960px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.92rem;
@@ -235,10 +235,8 @@ body {
 
 .cell-text {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .score-tag {
