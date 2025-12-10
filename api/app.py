@@ -23,6 +23,7 @@ db = SQLAlchemy(app)
 MAX_FLOWS = 400  # keep last N flows when responding to dashboard clients
 FLOW_RETENTION_MINUTES = int(os.environ.get("ADNS_FLOW_RETENTION_MINUTES", "30"))
 FLOW_RETENTION_MAX_ROWS = int(os.environ.get("ADNS_FLOW_RETENTION_MAX_ROWS", "5000"))
+KILL_SWITCH_STATE = {"enabled": False}
 
 PROTOCOL_MAP = {
     "1": "ICMP",
@@ -59,6 +60,15 @@ class Prediction(db.Model):
     flow_id = db.Column(db.Integer, db.ForeignKey("flows.id"), nullable=False, index=True)
     score = db.Column(db.Float, nullable=True)
     label = db.Column(db.String(32), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class BlockedIP(db.Model):
+    __tablename__ = "blocked_ips"
+
+    id = db.Column(db.Integer, primary_key=True)
+    ip = db.Column(db.String(64), unique=True, nullable=False)
+    active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
@@ -401,6 +411,16 @@ def flow_to_dict(flow: Flow) -> dict:
     }
 
 
+def is_anomalous_flow(flow: Flow) -> bool:
+    pred = flow.predictions.order_by(Prediction.created_at.desc()).first()
+    if not pred:
+        return False
+    label = (pred.label or "").lower()
+    if label and label != "normal":
+        return True
+    return float(pred.score or 0.0) >= 0.6
+
+
 def get_recent_flows(limit: int = MAX_FLOWS) -> list:
     flows = Flow.query.order_by(Flow.timestamp.desc()).limit(limit).all()
     # maintain chronological order (oldest first) for the dashboard
@@ -622,6 +642,16 @@ def flows():
     return jsonify(demo_flows)
 
 
+@app.get("/anomalous_flows")
+def anomalous_flows():
+    recent = get_recent_flows()
+    if not recent:
+        return jsonify([])
+    anomalies = [flow for flow in recent if is_anomalous_flow(flow)]
+    payload = [flow_to_dict(f) for f in anomalies]
+    return jsonify(payload)
+
+
 # ---------------------------------------------------------------
 # Anomaly stats (for now: simple derived stats from buffer or demo)
 # ---------------------------------------------------------------
@@ -651,6 +681,41 @@ def anomalies():
         "pct_anomalous": round(pct, 2),
     }
     return jsonify(stats)
+
+
+@app.post("/block_ip")
+def block_ip():
+    payload = request.get_json(silent=True) or {}
+    ip = str(payload.get("ip") or "").strip()
+    if not ip:
+        return jsonify({"error": "ip is required"}), 400
+
+    record = BlockedIP.query.filter_by(ip=ip).first()
+    now = datetime.now(timezone.utc)
+    if record:
+        record.active = True
+        record.created_at = now
+    else:
+        db.session.add(BlockedIP(ip=ip, active=True, created_at=now))
+    db.session.commit()
+    return jsonify({"status": "blocked", "ip": ip})
+
+
+@app.get("/blocked_ips")
+def blocked_ips():
+    rows = BlockedIP.query.filter_by(active=True).order_by(BlockedIP.created_at.desc()).all()
+    payload = [{"ip": row.ip, "created_at": row.created_at.isoformat()} for row in rows]
+    return jsonify(payload)
+
+
+@app.route("/killswitch", methods=["GET", "POST"])
+def killswitch():
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        enabled = bool(payload.get("enabled"))
+        KILL_SWITCH_STATE["enabled"] = enabled
+        return jsonify({"enabled": enabled})
+    return jsonify({"enabled": bool(KILL_SWITCH_STATE.get("enabled", False))})
 
 
 # ---------------------------------------------------------------

@@ -81,6 +81,9 @@ export default function App() {
   const [srcFilter, setSrcFilter] = useState("");
   const [simBusy, setSimBusy] = useState("");
   const [simStatus, setSimStatus] = useState(null);
+  const [killSwitch, setKillSwitch] = useState(false);
+  const [killBusy, setKillBusy] = useState(false);
+  const [blockMessage, setBlockMessage] = useState("");
 
   const fetchLatest = useCallback(async () => {
     try {
@@ -105,6 +108,32 @@ export default function App() {
     const id = setInterval(fetchLatest, 2000);
     return () => clearInterval(id);
   }, [fetchLatest]);
+
+  useEffect(() => {
+    const fetchKillSwitch = async () => {
+      try {
+        const res = await api.get("/api/killswitch");
+        setKillSwitch(Boolean(res.data?.enabled));
+      } catch (err) {
+        console.error("killswitch fetch failed", err);
+      }
+    };
+    fetchKillSwitch();
+  }, []);
+
+  const toggleKillSwitch = async () => {
+    setKillBusy(true);
+    try {
+      const next = !killSwitch;
+      await api.post("/api/killswitch", { enabled: next });
+      setKillSwitch(next);
+    } catch (err) {
+      console.error("killswitch toggle failed", err);
+      setError("Unable to toggle killswitch");
+    } finally {
+      setKillBusy(false);
+    }
+  };
 
   const triggerSimulation = async (attack) => {
     setSimBusy(attack.type);
@@ -135,6 +164,15 @@ export default function App() {
   const sortedFlows = useMemo(() => {
     return [...flows].sort((a, b) => new Date(b.ts) - new Date(a.ts));
   }, [flows]);
+
+  const anomalousFlows = useMemo(() => {
+    return sortedFlows.filter((flow) => {
+      const severity = severityFromLabel(flow.label, flow.score);
+      if (severity !== "normal") return true;
+      const s = Number(flow.score) || 0;
+      return s >= 0.6;
+    });
+  }, [sortedFlows]);
 
   const visibleFlows = useMemo(() => {
     if (!srcFilter.trim()) {
@@ -194,6 +232,16 @@ export default function App() {
           <p className="app-subtitle">
             Anomaly Detection Network System — live traffic overview
           </p>
+        </div>
+        <div className="kill-switch">
+          <button
+            type="button"
+            className={`simulate-btn${killSwitch ? " is-active" : ""}`}
+            onClick={toggleKillSwitch}
+            disabled={killBusy}
+          >
+            {killSwitch ? "Killswitch ON (disable)" : "Killswitch OFF (enable)"}
+          </button>
         </div>
       </header>
 
@@ -275,6 +323,7 @@ export default function App() {
       </section>
 
       {error && <div className="app-alert">{error}</div>}
+      {blockMessage && <div className="app-alert">{blockMessage}</div>}
 
       <section className="metrics-grid">
         <Card
@@ -387,6 +436,53 @@ export default function App() {
         )}
       </section>
 
+      <section className="panel chart-panel">
+        <div className="panel-heading">
+          <h3>Anomalous flows</h3>
+          <p>Only non-normal flows; use block buttons to respond.</p>
+        </div>
+        {anomalousFlows.length === 0 ? (
+          <p className="empty-state">No anomalous flows yet.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={anomalousFlows.map((f, i) => ({
+                index: i,
+                score: f.score,
+                severity: severityFromLabel(f.label, f.score),
+                label: f.label,
+                src_ip: f.src_ip,
+              }))}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="index" />
+              <YAxis domain={[0, 1]} />
+              <Tooltip
+                formatter={(value, _name, { payload }) => [
+                  (Number(value) || 0).toFixed(3),
+                  `${payload?.src_ip || ""} ${payload?.label || ""}`,
+                ]}
+              />
+              <ReferenceLine y={0.9} stroke="#b91c1c" strokeDasharray="4 4" />
+              <ReferenceLine y={0.6} stroke="#ea580c" strokeDasharray="4 4" />
+              <Line
+                type="monotone"
+                dataKey="score"
+                dot={({ payload }) => (
+                  <circle
+                    r={4}
+                    fill={threatColor(payload.severity)}
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                  />
+                )}
+                strokeWidth={2}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </section>
+
       <section className="panel table-panel">
         <div className="panel-heading">
           <h3>Recent flows</h3>
@@ -415,6 +511,7 @@ export default function App() {
                   <Th>Proto</Th>
                   <Th>Bytes</Th>
                   <Th>Attack Type</Th>
+                  <Th>Actions</Th>
                   <Th>Score</Th>
                   <Th>Severity</Th>
                 </tr>
@@ -428,6 +525,24 @@ export default function App() {
                       <Td>{f.proto}</Td>
                       <Td>{f.bytes}</Td>
                       <Td>{formatLabel(f.label)}</Td>
+                      <Td clamp={false}>
+                        <button
+                          type="button"
+                          className="simulate-btn"
+                          onClick={async () => {
+                            setBlockMessage("");
+                            try {
+                              await api.post("/api/block_ip", { ip: f.src_ip });
+                              setBlockMessage(`Blocked ${f.src_ip}`);
+                            } catch (err) {
+                              console.error("block failed", err);
+                              setBlockMessage("Failed to block IP");
+                            }
+                          }}
+                        >
+                          Block IP
+                        </button>
+                      </Td>
                       <Td clamp={false}>
                         <ScoreTag score={f.score} />
                       </Td>
