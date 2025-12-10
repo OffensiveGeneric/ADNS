@@ -95,8 +95,8 @@ services:
       context: .
       dockerfile: Dockerfile.agent
     environment:
-      API_URL: http://api:5000/ingest
-      INTERFACE: eth0
+      API_URL: http://127.0.0.1:5000/ingest
+      INTERFACE: wlp0s20f3
       BATCH_SIZE: 50
       POST_INTERVAL: 2.0
       RETRY_DELAY: 3.0
