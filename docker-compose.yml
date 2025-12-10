@@ -80,8 +80,6 @@ services:
     build:
       context: frontend/adns-frontend
       dockerfile: Dockerfile
-      args:
-        VITE_API_URL: http://localhost:5000
     depends_on:
       api:
         condition: service_started
