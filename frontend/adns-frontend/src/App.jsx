@@ -85,6 +85,7 @@ export default function App() {
   const [srcFilter, setSrcFilter] = useState("");
   const [simBusy, setSimBusy] = useState("");
   const [simStatus, setSimStatus] = useState(null);
+  const [simDuration, setSimDuration] = useState(0);
   const [killSwitch, setKillSwitch] = useState(false);
   const [killBusy, setKillBusy] = useState(false);
   const [blockMessage, setBlockMessage] = useState("");
@@ -145,15 +146,26 @@ export default function App() {
     setSimBusy(attack.type);
     setSimStatus({
       tone: "info",
-      message: `Triggering ${attack.label}…`,
+      message:
+        simDuration > 0
+          ? `Streaming ${attack.label} for ${simDuration}s…`
+          : `Triggering ${attack.label}…`,
     });
     try {
-      const resp = await api.post("/api/simulate", { type: attack.type });
+      const payload = { type: attack.type };
+      const durationInt = parseInt(simDuration, 10);
+      if (!Number.isNaN(durationInt) && durationInt > 0) {
+        payload.duration_seconds = durationInt;
+      }
+      const resp = await api.post("/api/simulate", payload);
       await fetchLatest();
       setTimeout(fetchLatest, 1000);
       setSimStatus({
         tone: "success",
-        message: `Generated ${resp.data.generated} flows (${attack.label}).`,
+        message:
+          resp.data?.status === "streaming"
+            ? `Streaming ${attack.label} for ${resp.data.duration_seconds}s (batch ${resp.data.batch_size}).`
+            : `Generated ${resp.data.generated} flows (${attack.label}).`,
       });
     } catch (err) {
       console.error(err);
@@ -257,6 +269,19 @@ export default function App() {
           <div className="panel-heading">
             <h3>Attack simulation controls</h3>
             <p>Use these demo buttons to stream synthetic malicious traffic.</p>
+          </div>
+          <div className="simulate-controls">
+            <label htmlFor="simDuration">
+              Duration (seconds, 0 for one-shot)
+            </label>
+            <input
+              id="simDuration"
+              type="number"
+              min="0"
+              max="600"
+              value={simDuration}
+              onChange={(e) => setSimDuration(e.target.value)}
+            />
           </div>
           <div className="simulate-grid">
             {SIM_ATTACKS.map((attack) => (

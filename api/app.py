@@ -2,6 +2,8 @@ import os
 import random
 import shutil
 import subprocess
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, jsonify, request
@@ -629,6 +631,65 @@ def simulate_attack():
     except (TypeError, ValueError):
         return jsonify({"error": "count must be an integer"}), 400
     count = max(5, min(count, 250))
+
+    duration_seconds = payload.get("duration_seconds", payload.get("duration"))
+    try:
+        duration_seconds = int(duration_seconds) if duration_seconds is not None else 0
+    except (TypeError, ValueError):
+        duration_seconds = 0
+    duration_seconds = max(0, min(duration_seconds, 600))
+    interval_seconds = payload.get("interval_seconds")
+    try:
+        interval_seconds = float(interval_seconds) if interval_seconds is not None else 1.0
+    except (TypeError, ValueError):
+        interval_seconds = 1.0
+    interval_seconds = max(0.5, min(interval_seconds, 5.0))
+
+    if duration_seconds > 0:
+        batch_size = max(5, min(count, 200))
+
+        def _stream_simulation() -> None:
+            deadline = time.time() + duration_seconds
+            with app.app_context():
+                total_generated = 0
+                while time.time() < deadline:
+                    flows = generate_attack_flows(attack_type, batch_size)
+                    for flow in flows:
+                        db.session.add(flow)
+                    db.session.flush()
+
+                    for flow in flows:
+                        score, label = simulation_detector.predict(db.session, flow)
+                        db.session.add(
+                            Prediction(
+                                flow_id=flow.id,
+                                score=score,
+                                label=label,
+                                created_at=datetime.now(timezone.utc),
+                            )
+                        )
+
+                    db.session.commit()
+                    enforce_flow_retention()
+                    total_generated += len(flows)
+                    time.sleep(interval_seconds)
+                app.logger.info(
+                    "completed streaming simulate: %s flows over %s seconds",
+                    total_generated,
+                    duration_seconds,
+                )
+
+        threading.Thread(target=_stream_simulation, daemon=True).start()
+        return jsonify(
+            {
+                "status": "streaming",
+                "type": attack_type,
+                "label": profile["label"],
+                "duration_seconds": duration_seconds,
+                "batch_size": batch_size,
+                "interval_seconds": interval_seconds,
+            }
+        )
 
     flows = generate_attack_flows(attack_type, count)
     for flow in flows:

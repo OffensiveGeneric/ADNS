@@ -299,6 +299,27 @@ body {
   gap: 12px;
 }
 
+.simulate-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.simulate-controls label {
+  font-weight: 600;
+  color: #4c5b79;
+}
+
+.simulate-controls input {
+  border: 1px solid #c9d4f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 140px;
+  font-size: 0.95rem;
+}
+
 .simulate-btn {
   border: none;
   border-radius: 14px;
