@@ -117,6 +117,33 @@ body {
   align-items: stretch;
 }
 
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.main-column {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.sidebar {
+  position: relative;
+}
+
+.sidebar-panel {
+  height: 100%;
+}
+
+.sidebar-scroll {
+  max-height: calc(100vh - 240px);
+  overflow: auto;
+  padding-bottom: 6px;
+}
+
 .anomaly-panel {
   height: 100%;
 }
@@ -359,5 +386,13 @@ body {
 
   .panel-row {
     grid-template-columns: 1fr;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-scroll {
+    max-height: none;
   }
 }

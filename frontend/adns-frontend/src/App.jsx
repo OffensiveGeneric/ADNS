@@ -329,306 +329,313 @@ export default function App() {
         </section>
       </div>
 
-      <section className="panel timeline-panel">
-        <div className="panel-heading">
-          <h3>Threat timeline</h3>
-          <p>Recent flow scores with severity shading.</p>
-        </div>
-        {timelineData.length === 0 ? (
-          <p className="empty-state">Timeline will appear once flows arrive.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={timelineData}>
-              <defs>
-                <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.7} />
-                  <stop offset="40%" stopColor="#f97316" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#22c55e" stopOpacity={0.2} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="2 4" vertical={false} />
-              <XAxis
-                dataKey="tsLabel"
-                tick={{ fontSize: 10 }}
-                interval={timelineData.length > 12 ? 2 : 0}
-              />
-              <YAxis domain={[0, 1]} hide />
-              <Tooltip
-                formatter={(value, _, entry) => [
-                  (Number(value) || 0).toFixed(3),
-                  entry.payload.severity,
-                ]}
-              />
-              <Area
-                type="monotone"
-                dataKey="score"
-                stroke="#ea580c"
-                fill="url(#scoreGradient)"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-              />
-              <Scatter
-                data={timelineData.filter((d) => d.severity !== "normal")}
-                fill="#b91c1c"
-                shape="circle"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </section>
+      <div className="content-grid">
+        <div className="main-column">
+          {error && <div className="app-alert">{error}</div>}
+          {blockMessage && <div className="app-alert">{blockMessage}</div>}
 
-      {error && <div className="app-alert">{error}</div>}
-      {blockMessage && <div className="app-alert">{blockMessage}</div>}
+          <section className="panel timeline-panel">
+            <div className="panel-heading">
+              <h3>Threat timeline</h3>
+              <p>Recent flow scores with severity shading.</p>
+            </div>
+            {timelineData.length === 0 ? (
+              <p className="empty-state">Timeline will appear once flows arrive.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <AreaChart data={timelineData}>
+                  <defs>
+                    <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.7} />
+                      <stop offset="40%" stopColor="#f97316" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#22c55e" stopOpacity={0.2} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="2 4" vertical={false} />
+                  <XAxis
+                    dataKey="tsLabel"
+                    tick={{ fontSize: 10 }}
+                    interval={timelineData.length > 12 ? 2 : 0}
+                  />
+                  <YAxis domain={[0, 1]} hide />
+                  <Tooltip
+                    formatter={(value, _, entry) => [
+                      (Number(value) || 0).toFixed(3),
+                      entry.payload.severity,
+                    ]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="score"
+                    stroke="#ea580c"
+                    fill="url(#scoreGradient)"
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                  <Scatter
+                    data={timelineData.filter((d) => d.severity !== "normal")}
+                    fill="#b91c1c"
+                    shape="circle"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </section>
 
-      <section className="metrics-grid">
-        <Card
-          title="Anomalies (10 min)"
-          value={stats?.count ?? (loading ? "…" : "0")}
-        />
-        <Card
-          title="Max anomaly score"
-          value={
-            stats?.max_score != null
-              ? stats.max_score.toFixed(3)
-              : loading
-              ? "…"
-              : "0.000"
-          }
-        />
-        <Card
-          title="% traffic anomalous"
-          value={
-            stats?.pct_anomalous != null
-              ? `${stats.pct_anomalous}%`
-              : loading
-              ? "…"
-              : "0%"
-          }
-        />
-      </section>
+          <section className="metrics-grid">
+            <Card
+              title="Anomalies (10 min)"
+              value={stats?.count ?? (loading ? "…" : "0")}
+            />
+            <Card
+              title="Max anomaly score"
+              value={
+                stats?.max_score != null
+                  ? stats.max_score.toFixed(3)
+                  : loading
+                  ? "…"
+                  : "0.000"
+              }
+            />
+            <Card
+              title="% traffic anomalous"
+              value={
+                stats?.pct_anomalous != null
+                  ? `${stats.pct_anomalous}%`
+                  : loading
+                  ? "…"
+                  : "0%"
+              }
+            />
+          </section>
 
-      <section className="panel donut-panel">
-        <div className="panel-heading">
-          <h3>Severity mix</h3>
-          <p>Breakdown of recent flows by model decision.</p>
-        </div>
-        <div className="donut-wrapper">
-          <ResponsiveContainer width="55%" height={220}>
-            <PieChart>
-              <Pie
-                data={donutData}
-                innerRadius={60}
-                outerRadius={90}
-                dataKey="value"
-                paddingAngle={2}
-              >
+          <section className="panel donut-panel">
+            <div className="panel-heading">
+              <h3>Severity mix</h3>
+              <p>Breakdown of recent flows by model decision.</p>
+            </div>
+            <div className="donut-wrapper">
+              <ResponsiveContainer width="55%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={donutData}
+                    innerRadius={60}
+                    outerRadius={90}
+                    dataKey="value"
+                    paddingAngle={2}
+                  >
+                    {donutData.map((entry) => (
+                      <Cell key={entry.severity} fill={threatColor(entry.severity)} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, name) => [`${value} flows`, name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <ul className="donut-legend">
                 {donutData.map((entry) => (
-                  <Cell key={entry.severity} fill={threatColor(entry.severity)} />
+                  <li key={entry.severity}>
+                    <span
+                      className="dot"
+                      style={{ background: threatColor(entry.severity) }}
+                    />
+                    {entry.name}: {entry.value}
+                  </li>
                 ))}
-              </Pie>
-              <Tooltip
-                formatter={(value, name) => [`${value} flows`, name]}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <ul className="donut-legend">
-            {donutData.map((entry) => (
-              <li key={entry.severity}>
-                <span
-                  className="dot"
-                  style={{ background: threatColor(entry.severity) }}
-                />
-                {entry.name}: {entry.value}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      <section className="panel chart-panel">
-        <div className="panel-heading">
-          <h3>Anomaly score over recent flows</h3>
-        </div>
-        {chartData.length === 0 ? (
-          <p className="empty-state">No flow data yet.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="index" />
-              <YAxis domain={[0, 1]} />
-              <Tooltip
-                formatter={(value, _name, { payload }) => [
-                  (Number(value) || 0).toFixed(3),
-                  payload?.severity || "score",
-                ]}
-              />
-              <ReferenceLine y={0.9} stroke="#b91c1c" strokeDasharray="4 4" />
-              <ReferenceLine y={0.6} stroke="#ea580c" strokeDasharray="4 4" />
-              <Line
-                type="monotone"
-                dataKey="score"
-                dot={({ payload }) => (
-                  <circle
-                    r={4}
-                    fill={threatColor(payload.severity)}
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                  />
-                )}
-                activeDot={({ payload }) => (
-                  <circle
-                    r={5}
-                    fill={threatColor(payload.severity)}
-                    stroke="#111827"
-                    strokeWidth={1}
-                  />
-                )}
-                strokeWidth={2}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </section>
-
-      <section className="panel table-panel">
-        <div className="panel-heading">
-          <h3>Anomalous flow list</h3>
-        </div>
-        {anomalousFlows.length === 0 ? (
-          <p className="empty-state">No anomalous flows yet.</p>
-        ) : (
-          <div className="table-wrapper">
-            <table className="flow-table">
-              <thead>
-                <tr>
-                  <Th>Time</Th>
-                  <Th>Source IP</Th>
-                  <Th>Destination IP</Th>
-                  <Th>Proto</Th>
-                  <Th>Bytes</Th>
-                  <Th>Attack Type</Th>
-                  <Th>Actions</Th>
-                  <Th>Score</Th>
-                  <Th>Severity</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {anomalousFlows.map((f, idx) => (
-                  <tr key={`anomaly-${idx}`}>
-                    <Td>{new Date(f.ts).toLocaleString()}</Td>
-                    <Td>{f.src_ip}</Td>
-                    <Td>{f.dst_ip}</Td>
-                    <Td>{f.proto}</Td>
-                    <Td>{f.bytes}</Td>
-                    <Td>{formatLabel(f.label)}</Td>
-                    <Td clamp={false}>
-                      <button
-                        type="button"
-                        className="simulate-btn"
-                        onClick={async () => {
-                          setBlockMessage("");
-                          try {
-                            await api.post("/api/block_ip", { ip: f.src_ip });
-                            setBlockMessage(`Blocked ${f.src_ip}`);
-                          } catch (err) {
-                            console.error("block failed", err);
-                            setBlockMessage("Failed to block IP");
-                          }
-                        }}
-                      >
-                        Block IP
-                      </button>
-                    </Td>
-                    <Td clamp={false}>
-                      <ScoreTag score={f.score} />
-                    </Td>
-                    <Td clamp={false}>
-                      <ThreatBadge label={f.label} score={f.score} />
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="panel table-panel">
-        <div className="panel-heading">
-          <h3>Recent flows</h3>
-        </div>
-        {visibleFlows.length === 0 ? (
-          <p className="empty-state">No flows yet.</p>
-        ) : (
-          <>
-            <div className="filter-row">
-              <label htmlFor="srcFilter">Filter by source IP</label>
-              <input
-                id="srcFilter"
-                type="text"
-                value={srcFilter}
-                onChange={(e) => setSrcFilter(e.target.value)}
-                placeholder="e.g. 192.168"
-              />
+              </ul>
             </div>
-            <div className="table-wrapper">
-              <table className="flow-table">
-                <thead>
-                  <tr>
-                    <Th>Time</Th>
-                    <Th>Source IP</Th>
-                  <Th>Destination IP</Th>
-                  <Th>Proto</Th>
-                  <Th>Bytes</Th>
-                  <Th>Attack Type</Th>
-                  <Th>Actions</Th>
-                  <Th>Score</Th>
-                  <Th>Severity</Th>
-                </tr>
-              </thead>
-              <tbody>
-                  {visibleFlows.map((f, idx) => (
-                    <tr key={idx}>
-                      <Td>{new Date(f.ts).toLocaleString()}</Td>
-                      <Td>{f.src_ip}</Td>
-                      <Td>{f.dst_ip}</Td>
-                      <Td>{f.proto}</Td>
-                      <Td>{f.bytes}</Td>
-                      <Td>{formatLabel(f.label)}</Td>
-                      <Td clamp={false}>
-                        <button
-                          type="button"
-                          className="simulate-btn"
-                          onClick={async () => {
-                            setBlockMessage("");
-                            try {
-                              await api.post("/api/block_ip", { ip: f.src_ip });
-                              setBlockMessage(`Blocked ${f.src_ip}`);
-                            } catch (err) {
-                              console.error("block failed", err);
-                              setBlockMessage("Failed to block IP");
-                            }
-                          }}
-                        >
-                          Block IP
-                        </button>
-                      </Td>
-                      <Td clamp={false}>
-                        <ScoreTag score={f.score} />
-                      </Td>
-                      <Td clamp={false}>
-                        <ThreatBadge label={f.label} score={f.score} />
-                      </Td>
+          </section>
+
+          <section className="panel chart-panel">
+            <div className="panel-heading">
+              <h3>Anomaly score over recent flows</h3>
+            </div>
+            {chartData.length === 0 ? (
+              <p className="empty-state">No flow data yet.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="index" />
+                  <YAxis domain={[0, 1]} />
+                  <Tooltip
+                    formatter={(value, _name, { payload }) => [
+                      (Number(value) || 0).toFixed(3),
+                      payload?.severity || "score",
+                    ]}
+                  />
+                  <ReferenceLine y={0.9} stroke="#b91c1c" strokeDasharray="4 4" />
+                  <ReferenceLine y={0.6} stroke="#ea580c" strokeDasharray="4 4" />
+                  <Line
+                    type="monotone"
+                    dataKey="score"
+                    dot={({ payload }) => (
+                      <circle
+                        r={4}
+                        fill={threatColor(payload.severity)}
+                        stroke="#ffffff"
+                        strokeWidth={1}
+                      />
+                    )}
+                    activeDot={({ payload }) => (
+                      <circle
+                        r={5}
+                        fill={threatColor(payload.severity)}
+                        stroke="#111827"
+                        strokeWidth={1}
+                      />
+                    )}
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </section>
+
+          <section className="panel table-panel">
+            <div className="panel-heading">
+              <h3>Recent flows</h3>
+            </div>
+            {visibleFlows.length === 0 ? (
+              <p className="empty-state">No flows yet.</p>
+            ) : (
+              <>
+                <div className="filter-row">
+                  <label htmlFor="srcFilter">Filter by source IP</label>
+                  <input
+                    id="srcFilter"
+                    type="text"
+                    value={srcFilter}
+                    onChange={(e) => setSrcFilter(e.target.value)}
+                    placeholder="e.g. 192.168"
+                  />
+                </div>
+                <div className="table-wrapper">
+                  <table className="flow-table">
+                    <thead>
+                      <tr>
+                        <Th>Time</Th>
+                        <Th>Source IP</Th>
+                        <Th>Destination IP</Th>
+                        <Th>Proto</Th>
+                        <Th>Bytes</Th>
+                        <Th>Attack Type</Th>
+                        <Th>Actions</Th>
+                        <Th>Score</Th>
+                        <Th>Severity</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleFlows.map((f, idx) => (
+                        <tr key={idx}>
+                          <Td>{new Date(f.ts).toLocaleString()}</Td>
+                          <Td>{f.src_ip}</Td>
+                          <Td>{f.dst_ip}</Td>
+                          <Td>{f.proto}</Td>
+                          <Td>{f.bytes}</Td>
+                          <Td>{formatLabel(f.label)}</Td>
+                          <Td clamp={false}>
+                            <button
+                              type="button"
+                              className="simulate-btn"
+                              onClick={async () => {
+                                setBlockMessage("");
+                                try {
+                                  await api.post("/api/block_ip", { ip: f.src_ip });
+                                  setBlockMessage(`Blocked ${f.src_ip}`);
+                                } catch (err) {
+                                  console.error("block failed", err);
+                                  setBlockMessage("Failed to block IP");
+                                }
+                              }}
+                            >
+                              Block IP
+                            </button>
+                          </Td>
+                          <Td clamp={false}>
+                            <ScoreTag score={f.score} />
+                          </Td>
+                          <Td clamp={false}>
+                            <ThreatBadge label={f.label} score={f.score} />
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+
+        <aside className="sidebar">
+          <section className="panel table-panel sidebar-panel">
+            <div className="panel-heading">
+              <h3>Anomalous flow list</h3>
+              <p>Always-visible anomalies with quick actions.</p>
+            </div>
+            {anomalousFlows.length === 0 ? (
+              <p className="empty-state">No anomalous flows yet.</p>
+            ) : (
+              <div className="table-wrapper sidebar-scroll">
+                <table className="flow-table">
+                  <thead>
+                    <tr>
+                      <Th>Time</Th>
+                      <Th>Source IP</Th>
+                      <Th>Destination IP</Th>
+                      <Th>Proto</Th>
+                      <Th>Bytes</Th>
+                      <Th>Attack Type</Th>
+                      <Th>Actions</Th>
+                      <Th>Score</Th>
+                      <Th>Severity</Th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </section>
+                  </thead>
+                  <tbody>
+                    {anomalousFlows.map((f, idx) => (
+                      <tr key={`anomaly-${idx}`}>
+                        <Td>{new Date(f.ts).toLocaleString()}</Td>
+                        <Td>{f.src_ip}</Td>
+                        <Td>{f.dst_ip}</Td>
+                        <Td>{f.proto}</Td>
+                        <Td>{f.bytes}</Td>
+                        <Td>{formatLabel(f.label)}</Td>
+                        <Td clamp={false}>
+                          <button
+                            type="button"
+                            className="simulate-btn"
+                            onClick={async () => {
+                              setBlockMessage("");
+                              try {
+                                await api.post("/api/block_ip", { ip: f.src_ip });
+                                setBlockMessage(`Blocked ${f.src_ip}`);
+                              } catch (err) {
+                                console.error("block failed", err);
+                                setBlockMessage("Failed to block IP");
+                              }
+                            }}
+                          >
+                            Block IP
+                          </button>
+                        </Td>
+                        <Td clamp={false}>
+                          <ScoreTag score={f.score} />
+                        </Td>
+                        <Td clamp={false}>
+                          <ThreatBadge label={f.label} score={f.score} />
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }
