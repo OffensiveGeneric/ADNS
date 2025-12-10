@@ -453,7 +453,7 @@ def build_flow_extra(rec: dict) -> dict | None:
 
 
 def flow_to_dict(flow: Flow) -> dict:
-    latest_label = None
+    latest_label = "normal"
     pred = flow.predictions.order_by(Prediction.created_at.desc()).first()
     score = 0.0
     if pred:
@@ -683,6 +683,7 @@ def flows():
             "proto": "TCP",
             "bytes": 1500,
             "score": 0.12,
+            "label": "normal",
         },
         {
             "ts": "2025-11-17T11:10:05Z",
@@ -691,6 +692,7 @@ def flows():
             "proto": "TCP",
             "bytes": 4200,
             "score": 0.98,
+            "label": "ddos",
         },
         {
             "ts": "2025-11-17T11:10:09Z",
@@ -699,6 +701,7 @@ def flows():
             "proto": "UDP",
             "bytes": 800,
             "score": 0.45,
+            "label": "scanning",
         },
     ]
     return jsonify(demo_flows)
