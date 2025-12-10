@@ -370,6 +370,12 @@ class MetaFeatureBuilder:
 class MetaEnsembleModel:
     """Loads the combined ExtraTrees/XGBoost bundle and produces an averaged score."""
 
+    CLASS_LABELS = {
+        0: "normal",
+        1: "attack_type_2",
+        2: "attack_type_3",
+    }
+
     def __init__(self, model_path: str | os.PathLike | None = None) -> None:
         resolved = Path(model_path or os.environ.get("ADNS_META_MODEL_PATH", DEFAULT_META_MODEL_PATH))
         if not resolved.exists():
@@ -420,25 +426,51 @@ class MetaEnsembleModel:
         feature_frame = self.features.build_batch(flows)
         values = feature_frame.to_numpy(dtype="float32")
         probabilities: list[np.ndarray] = []
+        class_sets: list[np.ndarray] = []
 
         for name, model in self.models.items():
             vector = self._match_shape(values, getattr(model, "n_features_in_", values.shape[1]))
             try:
-                probs = model.predict_proba(vector)[:, 1]
+                probs = model.predict_proba(vector)
             except AttributeError:
                 logits = model.predict(vector)
-                probs = np.array(logits).reshape(-1)
-            probabilities.append(np.asarray(probs, dtype="float32"))
+                probs = np.array(logits).reshape(-1, 1)
+
+            probs = np.asarray(probs, dtype="float32")
+            classes = getattr(model, "classes_", None)
+            if classes is None:
+                classes = np.arange(probs.shape[1], dtype="int64")
+            class_sets.append(np.asarray(classes, dtype="int64"))
+            probabilities.append(probs)
 
         if not probabilities:
             raise RuntimeError("no usable estimators were loaded from the meta model bundle")
 
-        stacked = np.vstack(probabilities)
-        mean_scores = np.mean(stacked, axis=0)
-        return [
-            (float(score), self._label_for_probability(float(score)))
-            for score in mean_scores
-        ]
+        all_classes = sorted({int(c) for classes in class_sets for c in classes})
+        class_index = {cls: idx for idx, cls in enumerate(all_classes)}
+        combined = np.zeros((values.shape[0], len(all_classes)), dtype="float32")
+        class_counts = np.zeros(len(all_classes), dtype="float32")
+
+        for classes, probs in zip(class_sets, probabilities):
+            for col_idx, class_id in enumerate(classes):
+                target_idx = class_index.get(int(class_id))
+                if target_idx is None:
+                    continue
+                combined[:, target_idx] += probs[:, col_idx]
+                class_counts[target_idx] += 1
+
+        for idx, cnt in enumerate(class_counts):
+            if cnt > 0:
+                combined[:, idx] /= cnt
+
+        results: list[Tuple[float, str]] = []
+        for row in combined:
+            top_idx = int(np.argmax(row))
+            top_class = all_classes[top_idx]
+            top_score = float(row[top_idx])
+            label = self.CLASS_LABELS.get(top_class, f"class_{top_class}")
+            results.append((top_score, label))
+        return results
 
     @staticmethod
     def _match_shape(arr: np.ndarray, expected: int) -> np.ndarray:

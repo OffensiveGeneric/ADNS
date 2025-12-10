@@ -1,5 +1,5 @@
-# Build stage
-FROM node:18-bookworm AS build
+# Build stage (align with Vite engine requirement)
+FROM node:22-bookworm AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci

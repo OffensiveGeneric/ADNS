@@ -38,8 +38,24 @@ const SIM_ATTACKS = [
   },
 ];
 
+const formatLabel = (label) => {
+  if (!label) return "Unknown";
+  const cleaned = String(label).replace(/_/g, " ").trim();
+  if (!cleaned) return "Unknown";
+  return cleaned
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
 const severityFromLabel = (label, score) => {
   const normalized = (label || "").toLowerCase();
+  if (normalized === "normal") {
+    return "normal";
+  }
+  if (normalized.includes("attack")) {
+    return "anomaly";
+  }
   if (normalized === "anomaly" || normalized === "high") {
     return "anomaly";
   }
@@ -364,14 +380,15 @@ export default function App() {
                   <tr>
                     <Th>Time</Th>
                     <Th>Source IP</Th>
-                    <Th>Destination IP</Th>
-                    <Th>Proto</Th>
-                    <Th>Bytes</Th>
-                    <Th>Score</Th>
-                    <Th>Severity</Th>
-                  </tr>
-                </thead>
-                <tbody>
+                  <Th>Destination IP</Th>
+                  <Th>Proto</Th>
+                  <Th>Bytes</Th>
+                  <Th>Attack Type</Th>
+                  <Th>Score</Th>
+                  <Th>Severity</Th>
+                </tr>
+              </thead>
+              <tbody>
                   {visibleFlows.map((f, idx) => (
                     <tr key={idx}>
                       <Td>{new Date(f.ts).toLocaleString()}</Td>
@@ -379,6 +396,7 @@ export default function App() {
                       <Td>{f.dst_ip}</Td>
                       <Td>{f.proto}</Td>
                       <Td>{f.bytes}</Td>
+                      <Td>{formatLabel(f.label)}</Td>
                       <Td clamp={false}>
                         <ScoreTag score={f.score} />
                       </Td>
@@ -449,6 +467,7 @@ function ThreatBadge({ label, score }) {
   const severity = severityFromLabel(label, score);
   const config = severityConfig();
   const { text, color, bg, icon } = config[severity] || config.normal;
+  const labelText = formatLabel(label);
   return (
     <span
       className="threat-badge"
@@ -458,7 +477,7 @@ function ThreatBadge({ label, score }) {
       }}
     >
       <span className="icon">{icon}</span>
-      {text}
+      {labelText || text}
     </span>
   );
 }
