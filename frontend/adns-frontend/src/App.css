@@ -110,6 +110,17 @@ body {
   height: 360px;
 }
 
+.panel-row {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.anomaly-panel {
+  height: 100%;
+}
+
 .panel-heading h3 {
   margin: 0 0 14px;
   font-size: 1.1rem;
@@ -344,5 +355,9 @@ body {
 
   .chart-panel {
     height: 280px;
+  }
+
+  .panel-row {
+    grid-template-columns: 1fr;
   }
 }

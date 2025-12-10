@@ -252,33 +252,82 @@ export default function App() {
         </div>
       </header>
 
-      <section className="panel simulation-panel">
-        <div className="panel-heading">
-          <h3>Attack simulation controls</h3>
-          <p>Use these demo buttons to stream synthetic malicious traffic.</p>
-        </div>
-        <div className="simulate-grid">
-          {SIM_ATTACKS.map((attack) => (
-            <button
-              key={attack.type}
-              type="button"
-              className={`simulate-btn${
-                simBusy === attack.type ? " is-active" : ""
-              }`}
-              onClick={() => triggerSimulation(attack)}
-              disabled={Boolean(simBusy)}
-            >
-              <span>{attack.label}</span>
-              <small>{attack.description}</small>
-            </button>
-          ))}
-        </div>
-        {simStatus?.message && (
-          <p className={`simulate-status ${simStatus.tone}`}>
-            {simStatus.message}
-          </p>
-        )}
-      </section>
+      <div className="panel-row">
+        <section className="panel simulation-panel">
+          <div className="panel-heading">
+            <h3>Attack simulation controls</h3>
+            <p>Use these demo buttons to stream synthetic malicious traffic.</p>
+          </div>
+          <div className="simulate-grid">
+            {SIM_ATTACKS.map((attack) => (
+              <button
+                key={attack.type}
+                type="button"
+                className={`simulate-btn${
+                  simBusy === attack.type ? " is-active" : ""
+                }`}
+                onClick={() => triggerSimulation(attack)}
+                disabled={Boolean(simBusy)}
+              >
+                <span>{attack.label}</span>
+                <small>{attack.description}</small>
+              </button>
+            ))}
+          </div>
+          {simStatus?.message && (
+            <p className={`simulate-status ${simStatus.tone}`}>
+              {simStatus.message}
+            </p>
+          )}
+        </section>
+
+        <section className="panel chart-panel anomaly-panel">
+          <div className="panel-heading">
+            <h3>Anomalous flows</h3>
+            <p>Only non-normal flows; use block buttons to respond.</p>
+          </div>
+          {anomalousFlows.length === 0 ? (
+            <p className="empty-state">No anomalous flows yet.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={anomalousFlows.map((f, i) => ({
+                  index: i,
+                  score: f.score,
+                  severity: severityFromLabel(f.label, f.score),
+                  label: f.label,
+                  src_ip: f.src_ip,
+                }))}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="index" />
+                <YAxis domain={[0, 1]} />
+                <Tooltip
+                  formatter={(value, _name, { payload }) => [
+                    (Number(value) || 0).toFixed(3),
+                    `${payload?.src_ip || ""} ${payload?.label || ""}`,
+                  ]}
+                />
+                <ReferenceLine y={0.9} stroke="#b91c1c" strokeDasharray="4 4" />
+                <ReferenceLine y={0.6} stroke="#ea580c" strokeDasharray="4 4" />
+                <Line
+                  type="monotone"
+                  dataKey="score"
+                  dot={({ payload }) => (
+                    <circle
+                      r={4}
+                      fill={threatColor(payload.severity)}
+                      stroke="#ffffff"
+                      strokeWidth={1}
+                    />
+                  )}
+                  strokeWidth={2}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </section>
+      </div>
 
       <section className="panel timeline-panel">
         <div className="panel-heading">
@@ -433,53 +482,6 @@ export default function App() {
                     r={5}
                     fill={threatColor(payload.severity)}
                     stroke="#111827"
-                    strokeWidth={1}
-                  />
-                )}
-                strokeWidth={2}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </section>
-
-      <section className="panel chart-panel">
-        <div className="panel-heading">
-          <h3>Anomalous flows</h3>
-          <p>Only non-normal flows; use block buttons to respond.</p>
-        </div>
-        {anomalousFlows.length === 0 ? (
-          <p className="empty-state">No anomalous flows yet.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={anomalousFlows.map((f, i) => ({
-                index: i,
-                score: f.score,
-                severity: severityFromLabel(f.label, f.score),
-                label: f.label,
-                src_ip: f.src_ip,
-              }))}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="index" />
-              <YAxis domain={[0, 1]} />
-              <Tooltip
-                formatter={(value, _name, { payload }) => [
-                  (Number(value) || 0).toFixed(3),
-                  `${payload?.src_ip || ""} ${payload?.label || ""}`,
-                ]}
-              />
-              <ReferenceLine y={0.9} stroke="#b91c1c" strokeDasharray="4 4" />
-              <ReferenceLine y={0.6} stroke="#ea580c" strokeDasharray="4 4" />
-              <Line
-                type="monotone"
-                dataKey="score"
-                dot={({ payload }) => (
-                  <circle
-                    r={4}
-                    fill={threatColor(payload.severity)}
-                    stroke="#ffffff"
                     strokeWidth={1}
                   />
                 )}
