@@ -23,6 +23,30 @@ RDNS_CACHE_SIZE = int(os.environ.get("ADNS_RDNS_CACHE_SIZE", "500"))
 resolver = ReverseDNSResolver(cache_ttl=RDNS_CACHE_TTL, cache_size=RDNS_CACHE_SIZE, timeout=RDNS_TIMEOUT) if RDNS_ENABLED else None
 
 
+def _infer_scanning(flow) -> str | None:
+    """
+    Lightweight heuristic: flows with explicit scan service or low-bytes hits to many ports
+    default to scanning when the model says normal/watch.
+    """
+    extra = flow.extra or {}
+    service = str(extra.get("service", "")).lower()
+    if "scan" in service:
+        return "scanning"
+    try:
+        dst_port = int(extra.get("dst_port") or 0)
+    except (TypeError, ValueError):
+        dst_port = 0
+    try:
+        src_port = int(extra.get("src_port") or 0)
+    except (TypeError, ValueError):
+        src_port = 0
+    bytes_total = float(flow.bytes or 0.0)
+    if (dst_port and dst_port <= 1024) or (src_port and src_port <= 1024):
+        if bytes_total <= 20000:
+            return "scanning"
+    return None
+
+
 def _chunked(ids: Sequence[int], size: int) -> Iterable[list[int]]:
     for start in range(0, len(ids), size):
         yield list(ids[start : start + size])
@@ -121,6 +145,8 @@ def score_flow_batch(flow_ids: Sequence[int]) -> int:
                         candidate_attack = label
                     elif attack_label and label and label.lower() != "normal":
                         candidate_attack = attack_label
+                    elif label and label.lower() in {"normal", "watch"}:
+                        candidate_attack = _infer_scanning(flow)
 
                     extras = dict(flow.extra or {})
                     if candidate_attack and candidate_attack.lower() not in base_labels:

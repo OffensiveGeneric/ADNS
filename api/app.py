@@ -253,6 +253,30 @@ def block_ip_os(ip: str, allow: bool = False) -> tuple[bool, str]:
 
 simulation_detector = DetectionEngine()
 
+
+def _infer_scanning(flow) -> str | None:
+    """
+    Lightweight heuristic to nudge likely port scans when the model is neutral.
+    Looks for 'scan' service hint or low-byte hits to privileged ports.
+    """
+    extra = flow.extra or {}
+    service = str(extra.get("service", "")).lower()
+    if "scan" in service:
+        return "scanning"
+    try:
+        dst_port = int(extra.get("dst_port") or 0)
+    except (TypeError, ValueError):
+        dst_port = 0
+    try:
+        src_port = int(extra.get("src_port") or 0)
+    except (TypeError, ValueError):
+        src_port = 0
+    bytes_total = float(flow.bytes or 0.0)
+    if (dst_port and dst_port <= 1024) or (src_port and src_port <= 1024):
+        if bytes_total <= 20000:
+            return "scanning"
+    return None
+
 SIMULATION_TYPES = {
     "attack": {
         "label": "Generic attack",
@@ -748,6 +772,8 @@ def simulate_attack():
                             candidate_attack = label
                         elif attack_label and label and label.lower() != "normal":
                             candidate_attack = attack_label
+                        elif label and label.lower() in {"normal", "watch"}:
+                            candidate_attack = _infer_scanning(flow)
                         extras = dict(flow.extra or {})
                         if candidate_attack and candidate_attack.lower() not in base_labels:
                             extras["attack_type"] = candidate_attack
@@ -805,6 +831,8 @@ def simulate_attack():
             candidate_attack = label
         elif attack_label and label and label.lower() != "normal":
             candidate_attack = attack_label
+        elif label and label.lower() in {"normal", "watch"}:
+            candidate_attack = _infer_scanning(flow)
         extras = dict(flow.extra or {})
         if candidate_attack and candidate_attack.lower() not in base_labels:
             extras["attack_type"] = candidate_attack
