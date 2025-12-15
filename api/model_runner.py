@@ -71,7 +71,7 @@ class FlowModel:
         results = self.score_many([flow])
         return results[0] if results else (0.0, "normal")
 
-    def score_many(self, flows: Sequence) -> list[Tuple[float, str]]:
+    def score_many(self, flows: Sequence) -> list[Tuple[float, str, str | None]]:
         if not flows:
             return []
 
@@ -479,13 +479,23 @@ class MetaEnsembleModel:
             if cnt > 0:
                 combined[:, idx] /= cnt
 
-        results: list[Tuple[float, str]] = []
+        results: list[Tuple[float, str, str | None]] = []
         for row in combined:
             top_idx = int(np.argmax(row))
             top_class = all_classes[top_idx]
             top_score = float(row[top_idx])
             label = self.CLASS_LABELS.get(top_class, f"class_{top_class}")
-            results.append((top_score, label))
+            attack_label: str | None = None
+            if len(all_classes) > 1:
+                best_non_normal = sorted(
+                    ((prob, cls_id) for cls_id, prob in zip(all_classes, row) if cls_id != 0),
+                    key=lambda item: item[0],
+                    reverse=True,
+                )
+                if best_non_normal:
+                    _, best_cls = best_non_normal[0]
+                    attack_label = self.CLASS_LABELS.get(int(best_cls), f"class_{best_cls}")
+            results.append((top_score, label, attack_label))
         return results
 
     @staticmethod
@@ -524,7 +534,7 @@ class DetectionEngine:
             logger.info("reloading detection engine after model artifact change")
             self._load_model()
 
-    def predict(self, session, flow) -> Tuple[float, str]:
+    def predict(self, session, flow):
         self.reload_if_stale()
         if self._mode in {"meta", "ml"}:
             return self.model.score(flow)

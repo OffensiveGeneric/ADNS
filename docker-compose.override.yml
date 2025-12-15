@@ -1,0 +1,7 @@
+services:
+  api:
+    ports:
+      - "5002:5000"
+  frontend:
+    ports:
+      - "8081:80"

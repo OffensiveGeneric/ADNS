@@ -23,21 +23,11 @@ const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 const api = axios.create({ baseURL: apiBase });
 
 const SIM_ATTACKS = [
-  {
-    type: "botnet_flood",
-    label: "Botnet Flood",
-    description: "IoT swarm saturating a target",
-  },
-  {
-    type: "data_exfiltration",
-    label: "Data Exfiltration",
-    description: "Large outbound transfer",
-  },
-  {
-    type: "port_scan",
-    label: "Port Scan",
-    description: "Rapid lateral probing",
-  },
+  { type: "attack", label: "Attack", description: "Generic hostile burst" },
+  { type: "scanning", label: "Scanning", description: "Rapid port sweep" },
+  { type: "dos", label: "DoS", description: "Single-source flood" },
+  { type: "ddos", label: "DDoS", description: "Distributed swarm" },
+  { type: "injection", label: "Injection", description: "SQL/Web payloads" },
 ];
 
 const formatLabel = (label) => {
@@ -86,10 +76,23 @@ export default function App() {
   const [simBusy, setSimBusy] = useState("");
   const [simStatus, setSimStatus] = useState(null);
   const [simDuration, setSimDuration] = useState(0);
+  const [simVisible, setSimVisible] = useState(true);
   const [killSwitch, setKillSwitch] = useState(false);
   const [killBusy, setKillBusy] = useState(false);
   const [blockMessage, setBlockMessage] = useState("");
   const [blockedIps, setBlockedIps] = useState([]);
+
+  const handleUnblock = async (ip) => {
+    setBlockMessage("");
+    try {
+      await api.post("/api/unblock_ip", { ip });
+      setBlockMessage(`Unblocked ${ip}`);
+      await fetchLatest();
+    } catch (err) {
+      console.error("unblock failed", err);
+      setBlockMessage("Failed to unblock IP");
+    }
+  };
 
   const fetchLatest = useCallback(async () => {
     try {
@@ -261,59 +264,81 @@ export default function App() {
             Anomaly Detection Network System — live traffic overview
           </p>
         </div>
-        <div className="kill-switch">
-          <button
-            type="button"
-            className={`simulate-btn${killSwitch ? " is-active" : ""}`}
-            onClick={toggleKillSwitch}
-            disabled={killBusy}
-          >
-            {killSwitch ? "Killswitch ON (disable)" : "Killswitch OFF (enable)"}
-          </button>
+        <div className="header-actions">
+          {!simVisible && (
+            <button
+              type="button"
+              className="pill-btn ghost-btn"
+              onClick={() => setSimVisible(true)}
+            >
+              Show simulation controls
+            </button>
+          )}
+          <div className="kill-switch">
+            <button
+              type="button"
+              className={`simulate-btn${killSwitch ? " is-active" : ""}`}
+              onClick={toggleKillSwitch}
+              disabled={killBusy}
+            >
+              {killSwitch ? "Killswitch ON (disable)" : "Killswitch OFF (enable)"}
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="panel-row">
-        <section className="panel simulation-panel">
-          <div className="panel-heading">
-            <h3>Attack simulation controls</h3>
-            <p>Use these demo buttons to stream synthetic malicious traffic.</p>
-          </div>
-          <div className="simulate-controls">
-            <label htmlFor="simDuration">
-              Duration (seconds, 0 for one-shot)
-            </label>
-            <input
-              id="simDuration"
-              type="number"
-              min="0"
-              max="600"
-              value={simDuration}
-              onChange={(e) => setSimDuration(e.target.value)}
-            />
-          </div>
-          <div className="simulate-grid">
-            {SIM_ATTACKS.map((attack) => (
+      <div className={`panel-row ${simVisible ? "" : "panel-row-collapsed"}`}>
+        {simVisible && (
+          <section className="panel simulation-panel">
+            <div className="panel-heading">
+              <div className="panel-title-group">
+                <h3>Attack simulation controls</h3>
+                <p>Use these demo buttons to stream synthetic malicious traffic.</p>
+              </div>
               <button
-                key={attack.type}
                 type="button"
-                className={`simulate-btn${
-                  simBusy === attack.type ? " is-active" : ""
-                }`}
-                onClick={() => triggerSimulation(attack)}
-                disabled={Boolean(simBusy)}
+                className="pill-btn ghost-btn"
+                onClick={() => setSimVisible(false)}
               >
-                <span>{attack.label}</span>
-                <small>{attack.description}</small>
+                Minimize
               </button>
-            ))}
-          </div>
-          {simStatus?.message && (
-            <p className={`simulate-status ${simStatus.tone}`}>
-              {simStatus.message}
-            </p>
-          )}
-        </section>
+            </div>
+            <div className="simulate-controls">
+              <label htmlFor="simDuration">
+                Duration (seconds, 0 for one-shot)
+              </label>
+              <input
+                id="simDuration"
+                type="number"
+                min="0"
+                max="600"
+                value={simDuration}
+                onChange={(e) => setSimDuration(e.target.value)}
+              />
+            </div>
+            <div className="simulate-grid">
+              {SIM_ATTACKS.map((attack) => (
+                <button
+                  key={attack.type}
+                  type="button"
+                  className={`simulate-btn${
+                    simBusy === attack.type ? " is-active" : ""
+                  }`}
+                  onClick={() => triggerSimulation(attack)}
+                  disabled={Boolean(simBusy)}
+                >
+                  <span>{attack.label}</span>
+                  <small>{attack.description}</small>
+                </button>
+              ))}
+            </div>
+            {simStatus?.message && (
+              <p className={`simulate-status ${simStatus.tone}`}>
+                {simStatus.message}
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="panel chart-panel anomaly-panel">
           <div className="panel-heading">
@@ -323,24 +348,27 @@ export default function App() {
           {anomalousFlows.length === 0 ? (
             <p className="empty-state">No anomalous flows yet.</p>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={anomalousFlows.map((f, i) => ({
-                  index: i,
-                  score: f.score,
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={anomalousFlows.map((f, i) => ({
+                      index: i,
+                      score: f.score,
                   severity: severityFromLabel(f.label, f.score),
                   label: f.label,
                   src_ip: f.src_ip,
                 }))}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="index" />
-                <YAxis domain={[0, 1]} />
-                <Tooltip
-                  formatter={(value, _name, { payload }) => [
-                    (Number(value) || 0).toFixed(3),
-                    `${payload?.src_ip || ""} ${payload?.label || ""}`,
-                  ]}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="index"
+                      label={{ value: "Flow index", position: "insideBottom", offset: -4 }}
+                    />
+                    <YAxis domain={[0, 1]} label={{ value: "Score", angle: -90, position: "insideLeft" }} />
+                    <Tooltip
+                      formatter={(value, _name, { payload }) => [
+                        (Number(value) || 0).toFixed(3),
+                        `${payload?.src_ip || ""} ${payload?.label || ""}`,
+                      ]}
                 />
                 <ReferenceLine y={0.9} stroke="#b91c1c" strokeDasharray="4 4" />
                 <ReferenceLine y={0.6} stroke="#ea580c" strokeDasharray="4 4" />
@@ -363,7 +391,9 @@ export default function App() {
         </section>
       </div>
 
-      <div className="content-grid">
+      <div
+        className={`content-grid ${simVisible ? "" : "content-grid-collapsed"}`}
+      >
         <div className="main-column">
           {error && <div className="app-alert">{error}</div>}
           {blockMessage && <div className="app-alert">{blockMessage}</div>}
@@ -414,35 +444,8 @@ export default function App() {
                   />
                 </AreaChart>
               </ResponsiveContainer>
-            )}
-          </section>
-
-          <section className="metrics-grid">
-            <Card
-              title="Anomalies (10 min)"
-              value={stats?.count ?? (loading ? "…" : "0")}
-            />
-            <Card
-              title="Max anomaly score"
-              value={
-                stats?.max_score != null
-                  ? stats.max_score.toFixed(3)
-                  : loading
-                  ? "…"
-                  : "0.000"
-              }
-            />
-            <Card
-              title="% traffic anomalous"
-              value={
-                stats?.pct_anomalous != null
-                  ? `${stats.pct_anomalous}%`
-                  : loading
-                  ? "…"
-                  : "0%"
-              }
-            />
-          </section>
+          )}
+        </section>
 
           <section className="panel donut-panel">
             <div className="panel-heading">
@@ -492,8 +495,11 @@ export default function App() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="index" />
-                  <YAxis domain={[0, 1]} />
+                  <XAxis
+                    dataKey="index"
+                    label={{ value: "Recent flows", position: "insideBottom", offset: -4 }}
+                  />
+                  <YAxis domain={[0, 1]} label={{ value: "Anomaly score", angle: -90, position: "insideLeft" }} />
                   <Tooltip
                     formatter={(value, _name, { payload }) => [
                       (Number(value) || 0).toFixed(3),
@@ -556,9 +562,9 @@ export default function App() {
                         <Th>Proto</Th>
                         <Th>Bytes</Th>
                         <Th>Attack Type</Th>
-                        <Th>Actions</Th>
-                        <Th>Score</Th>
-                        <Th>Severity</Th>
+                        <Th className="col-actions">Actions</Th>
+                        <Th className="col-score">Score</Th>
+                        <Th className="col-severity">Severity</Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -569,11 +575,11 @@ export default function App() {
                           <Td>{f.dst_ip}</Td>
                           <Td>{f.proto}</Td>
                           <Td>{f.bytes}</Td>
-                          <Td>{formatLabel(f.label)}</Td>
-                          <Td clamp={false}>
+                          <Td>{formatLabel(f.attack_type || f.label)}</Td>
+                          <Td clamp={false} className="col-actions">
                             <button
                               type="button"
-                              className="simulate-btn"
+                              className="pill-btn"
                               onClick={async () => {
                                 setBlockMessage("");
                                 try {
@@ -588,10 +594,10 @@ export default function App() {
                               Block IP
                             </button>
                           </Td>
-                          <Td clamp={false}>
+                          <Td clamp={false} className="col-score">
                             <ScoreTag score={f.score} />
                           </Td>
-                          <Td clamp={false}>
+                          <Td clamp={false} className="col-severity">
                             <ThreatBadge label={f.label} score={f.score} />
                           </Td>
                         </tr>
@@ -602,72 +608,107 @@ export default function App() {
               </>
             )}
           </section>
-        </div>
+      </div>
 
-        <aside className="sidebar">
-          <section className="panel table-panel sidebar-panel">
-            <div className="panel-heading">
-              <h3>Anomalous flow list</h3>
-              <p>Always-visible anomalies with quick actions.</p>
+      <aside className="sidebar">
+        <section className="panel metrics-panel">
+          <div className="panel-heading">
+            <div className="panel-title-group">
+              <h3>Signal summary</h3>
+              <p>10-minute pulse for quick health.</p>
             </div>
-            {anomalousFlows.length === 0 ? (
-              <p className="empty-state">No anomalous flows yet.</p>
-            ) : (
-              <div className="table-wrapper sidebar-scroll">
-                <table className="flow-table">
-                  <thead>
-                    <tr>
-                      <Th>Time</Th>
-                      <Th>Source IP</Th>
-                      <Th>Destination IP</Th>
-                      <Th>Proto</Th>
-                      <Th>Bytes</Th>
-                      <Th>Attack Type</Th>
-                      <Th>Actions</Th>
-                      <Th>Score</Th>
-                      <Th>Severity</Th>
+          </div>
+          <div className="metrics-grid metrics-vertical">
+            <Card
+              title="Anomalies (10 min)"
+              value={stats?.count ?? (loading ? "…" : "0")}
+            />
+            <Card
+              title="Max anomaly score"
+              value={
+                stats?.max_score != null
+                  ? stats.max_score.toFixed(3)
+                  : loading
+                  ? "…"
+                  : "0.000"
+              }
+            />
+            <Card
+              title="% traffic anomalous"
+              value={
+                stats?.pct_anomalous != null
+                  ? `${stats.pct_anomalous}%`
+                  : loading
+                  ? "…"
+                  : "0%"
+              }
+            />
+          </div>
+        </section>
+
+        <section className="panel table-panel sidebar-panel">
+          <div className="panel-heading">
+            <h3>Anomalous flow list</h3>
+            <p>Always-visible anomalies with quick actions.</p>
+          </div>
+          {anomalousFlows.length === 0 ? (
+            <p className="empty-state">No anomalous flows yet.</p>
+          ) : (
+            <div className="table-wrapper sidebar-scroll">
+              <table className="flow-table">
+                <thead>
+                  <tr>
+                    <Th>Time</Th>
+                    <Th>Source IP</Th>
+                    <Th>Destination IP</Th>
+                    <Th>Proto</Th>
+                    <Th>Bytes</Th>
+                    <Th>Attack Type</Th>
+                    <Th className="col-actions">Actions</Th>
+                    <Th className="col-score">Score</Th>
+                    <Th className="col-severity">Severity</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {anomalousFlows.map((f, idx) => (
+                    <tr key={`anomaly-${idx}`}>
+                      <Td>{new Date(f.ts).toLocaleString()}</Td>
+                      <Td>{f.src_ip}</Td>
+                      <Td>{f.dst_ip}</Td>
+                      <Td>{f.proto}</Td>
+                      <Td>{f.bytes}</Td>
+                      <Td>{formatLabel(f.attack_type || f.label)}</Td>
+                      <Td clamp={false} className="col-actions">
+                        <button
+                          type="button"
+                          className="pill-btn"
+                          onClick={async () => {
+                            setBlockMessage("");
+                            try {
+                              await api.post("/api/block_ip", { ip: f.src_ip });
+                              setBlockMessage(`Blocked ${f.src_ip}`);
+                            } catch (err) {
+                              console.error("block failed", err);
+                              setBlockMessage("Failed to block IP");
+                            }
+                          }}
+                        >
+                          Block IP
+                        </button>
+                      </Td>
+                      <Td clamp={false} className="col-score">
+                        <ScoreTag score={f.score} />
+                      </Td>
+                      <Td clamp={false} className="col-severity">
+                        <ThreatBadge label={f.label} score={f.score} />
+                      </Td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {anomalousFlows.map((f, idx) => (
-                      <tr key={`anomaly-${idx}`}>
-                        <Td>{new Date(f.ts).toLocaleString()}</Td>
-                        <Td>{f.src_ip}</Td>
-                        <Td>{f.dst_ip}</Td>
-                        <Td>{f.proto}</Td>
-                        <Td>{f.bytes}</Td>
-                        <Td>{formatLabel(f.label)}</Td>
-                        <Td clamp={false}>
-                          <button
-                            type="button"
-                            className="simulate-btn"
-                            onClick={async () => {
-                              setBlockMessage("");
-                              try {
-                                await api.post("/api/block_ip", { ip: f.src_ip });
-                                setBlockMessage(`Blocked ${f.src_ip}`);
-                              } catch (err) {
-                                console.error("block failed", err);
-                                setBlockMessage("Failed to block IP");
-                              }
-                            }}
-                          >
-                            Block IP
-                          </button>
-                        </Td>
-                        <Td clamp={false}>
-                          <ScoreTag score={f.score} />
-                        </Td>
-                        <Td clamp={false}>
-                          <ThreatBadge label={f.label} score={f.score} />
-                        </Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
           <section className="panel sidebar-panel">
             <div className="panel-heading">
@@ -680,10 +721,24 @@ export default function App() {
               <ul className="blocked-list">
                 {blockedIps.map((row) => (
                   <li key={row.ip}>
-                    <span className="ip">{row.ip}</span>
-                    <span className="ts">
-                      {new Date(row.created_at).toLocaleString()}
-                    </span>
+                    <div>
+                      <div className="ip">{row.ip}</div>
+                      <div className="ts">
+                        {new Date(row.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="row-actions">
+                      <span className="score-tag score-anomaly" style={{ minWidth: 0 }}>
+                        Blocked
+                      </span>
+                      <button
+                        type="button"
+                        className="pill-btn"
+                        onClick={() => handleUnblock(row.ip)}
+                      >
+                        Unblock
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

@@ -100,15 +100,34 @@ def score_flow_batch(flow_ids: Sequence[int]) -> int:
                 if len(predictions) != len(flows):
                     raise RuntimeError("detection engine returned mismatched prediction count")
                 now = datetime.now(timezone.utc)
-                records = [
-                    {
-                        "flow_id": flow.id,
-                        "score": score,
-                        "label": label,
-                        "created_at": now,
-                    }
-                    for flow, (score, label) in zip(flows, predictions)
-                ]
+                records = []
+                for flow, pred in zip(flows, predictions):
+                    if len(pred) == 3:
+                        score, label, attack_label = pred
+                    else:
+                        score, label = pred
+                        attack_label = None
+                    records.append(
+                        {
+                            "flow_id": flow.id,
+                            "score": score,
+                            "label": label,
+                            "created_at": now,
+                        }
+                    )
+                    candidate_attack = None
+                    base_labels = {"normal", "watch", "anomaly"}
+                    if label and label.lower() not in base_labels:
+                        candidate_attack = label
+                    elif attack_label and label and label.lower() != "normal":
+                        candidate_attack = attack_label
+
+                    extras = dict(flow.extra or {})
+                    if candidate_attack and candidate_attack.lower() not in base_labels:
+                        extras["attack_type"] = candidate_attack
+                    else:
+                        extras.pop("attack_type", None)
+                    flow.extra = extras
 
                 inserted = _insert_predictions(records)
                 scored += inserted

@@ -211,31 +211,68 @@ def block_ip_os(ip: str, allow: bool = False) -> tuple[bool, str]:
     """
     Apply or remove a DROP rule for the given source IP. Best effort; requires NET_ADMIN.
     """
-    check = ["iptables", "-C", "INPUT", "-s", ip, "-j", "DROP"]
-    exists, _ = _run_cmd(check)
-    if allow:
+    rules = [
+        # Drop anything coming from the IP
+        (
+            ["iptables", "-C", "INPUT", "-s", ip, "-j", "DROP"],
+            ["iptables", "-I", "INPUT", "-s", ip, "-j", "DROP"],
+            ["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"],
+        ),
+        # Drop anything going to the IP
+        (
+            ["iptables", "-C", "OUTPUT", "-d", ip, "-j", "DROP"],
+            ["iptables", "-I", "OUTPUT", "-d", ip, "-j", "DROP"],
+            ["iptables", "-D", "OUTPUT", "-d", ip, "-j", "DROP"],
+        ),
+    ]
+
+    all_ok = True
+    messages: list[str] = []
+
+    for check_cmd, add_cmd, remove_cmd in rules:
+        exists, _ = _run_cmd(check_cmd)
+        if allow:
+            if exists:
+                ok, msg = _run_cmd(remove_cmd)
+                all_ok = all_ok and ok
+                if msg:
+                    messages.append(msg)
+            continue
+
         if exists:
-            return _run_cmd(["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"])
-        return True, "rule absent"
-    if exists:
-        return True, "already blocked"
-    return _run_cmd(["iptables", "-I", "INPUT", "-s", ip, "-j", "DROP"])
+            continue
+
+        ok, msg = _run_cmd(add_cmd)
+        all_ok = all_ok and ok
+        if msg:
+            messages.append(msg)
+
+    detail = "; ".join(messages) if messages else ""
+    return all_ok, detail or ("allow" if allow else "blocked")
 
 
 simulation_detector = DetectionEngine()
 
 SIMULATION_TYPES = {
-    "botnet_flood": {
-        "label": "IoT botnet flood",
+    "attack": {
+        "label": "Generic attack",
         "default_count": 40,
     },
-    "data_exfiltration": {
-        "label": "Data exfiltration burst",
-        "default_count": 30,
+    "scanning": {
+        "label": "Port scanning sweep",
+        "default_count": 80,
     },
-    "port_scan": {
-        "label": "Stealthy port scan",
+    "dos": {
+        "label": "DoS burst",
         "default_count": 60,
+    },
+    "ddos": {
+        "label": "DDoS swarm",
+        "default_count": 120,
+    },
+    "injection": {
+        "label": "Injection attempt",
+        "default_count": 40,
     },
 }
 
@@ -286,32 +323,51 @@ def generate_attack_flows(kind: str, count: int) -> list[Flow]:
         flows.append(flow)
 
     for i in range(count):
-        if kind == "botnet_flood":
+        if kind == "ddos":
             dst = rng.choice(["198.51.100.42", "198.51.100.47", "203.0.113.10"])
-            src = _pattern_ip("10.x.x.x", rng)
-            bytes_val = rng.randint(120_000, 420_000)
+            src = _pattern_ip("10.x.y.x", rng)
+            bytes_val = rng.randint(180_000, 520_000)
             offset = rng.uniform(0, 90)
             src_port = rng.randint(1024, 65000)
-            extra = _make_extra("tcp", src_port, 80, bytes_val, "http")
+            extra = _make_extra("tcp", src_port, rng.choice([80, 443]), bytes_val, "http")
             _add_flow(offset, src, dst, "TCP", bytes_val, extra)
-        elif kind == "data_exfiltration":
+        elif kind == "dos":
             src = rng.choice(["10.0.5.33", "10.0.5.34"])
-            dst = _pattern_ip("203.0.113.x", rng)
-            bytes_val = rng.randint(180_000, 450_000)
-            offset = rng.uniform(0, 120)
-            src_port = rng.randint(20000, 60000)
+            dst = rng.choice(["203.0.113.55", "203.0.113.56"])
+            bytes_val = rng.randint(90_000, 180_000)
+            offset = rng.uniform(0, 60)
+            src_port = rng.randint(10_000, 60000)
             extra = _make_extra("tcp", src_port, 443, bytes_val, "https")
             _add_flow(offset, src, dst, "TCP", bytes_val, extra)
-        elif kind == "port_scan":
+        elif kind == "scanning":
             src = rng.choice(["172.16.8.4", "172.16.8.5"])
             dst = f"192.168.{rng.randint(1, 10)}.{(i % 200) + 1}"
             proto = rng.choice(["UDP", "TCP"])
             bytes_val = rng.randint(800, 5000)
             offset = rng.uniform(0, 180)
             dst_port = rng.randint(1, 1024)
-            src_port = rng.randint(20000, 65000)
-            extra = _make_extra(proto.lower(), src_port, dst_port, bytes_val, proto.lower())
+            src_port = rng.randint(2000, 9000)
+            extra = _make_extra(proto.lower(), src_port, dst_port, bytes_val, "scan")
             _add_flow(offset, src, dst, proto, bytes_val, extra)
+        elif kind == "injection":
+            src = rng.choice(["10.12.11.7", "10.12.11.8"])
+            dst = _pattern_ip("203.0.113.x", rng)
+            bytes_val = rng.randint(4_000, 18_000)
+            offset = rng.uniform(0, 45)
+            dst_port = rng.choice([1433, 3306, 5432, 9200])
+            src_port = rng.randint(30000, 65000)
+            extra = _make_extra("tcp", src_port, dst_port, bytes_val, "sql")
+            extra["http_method"] = "POST"
+            extra["http_uri"] = "/login"
+            _add_flow(offset, src, dst, "TCP", bytes_val, extra)
+        elif kind == "attack":
+            src = rng.choice(["10.0.5.33", "10.0.5.34"])
+            dst = _pattern_ip("203.0.113.x", rng)
+            bytes_val = rng.randint(160_000, 360_000)
+            offset = rng.uniform(0, 120)
+            src_port = rng.randint(20000, 60000)
+            extra = _make_extra("tcp", src_port, 443, bytes_val, "https")
+            _add_flow(offset, src, dst, "TCP", bytes_val, extra)
         else:
             raise ValueError(f"unsupported attack type '{kind}'")
 
@@ -462,6 +518,14 @@ def flow_to_dict(flow: Flow) -> dict:
         latest_label = pred.label
         score = pred.score or 0.0
 
+    attack_type = None
+    if latest_label and latest_label.lower() not in {"normal", "watch", "anomaly"}:
+        attack_type = latest_label
+    if not attack_type:
+        extra_attack = (flow.extra or {}).get("attack_type")
+        if extra_attack:
+            attack_type = extra_attack
+
     return {
         "id": flow.id,
         "ts": flow.timestamp.isoformat(),
@@ -471,6 +535,7 @@ def flow_to_dict(flow: Flow) -> dict:
         "bytes": flow.bytes,
         "score": float(score),
         "label": latest_label,
+        "attack_type": attack_type,
         "extra": flow.extra or {},
     }
 
@@ -568,14 +633,24 @@ def ingest():
     else:
         return jsonify({"error": "invalid payload"}), 400
 
+    blocked = 0
     created = 0
     flow_records: list[Flow] = []
+
+    blocked_set = {row.ip for row in BlockedIP.query.filter_by(active=True).all()}
     for rec in batch:
+        src_ip = rec.get("src_ip", "")
+        dst_ip = rec.get("dst_ip", "")
+
+        if src_ip in blocked_set or dst_ip in blocked_set:
+            blocked += 1
+            continue
+
         extra = build_flow_extra(rec)
         flow = Flow(
             timestamp=parse_timestamp(rec.get("ts")),
-            src_ip=rec.get("src_ip", ""),
-            dst_ip=rec.get("dst_ip", ""),
+            src_ip=src_ip,
+            dst_ip=dst_ip,
             proto=normalize_protocol(rec.get("proto", "")),
             bytes=int(rec.get("bytes") or 0),
             extra=extra,
@@ -613,7 +688,9 @@ def ingest():
             except Exception:
                 app.logger.exception("inline scoring fallback also failed")
 
-    return jsonify({"status": "ok", "ingested": created, "purged": purged, "queued": enqueued})
+    return jsonify(
+        {"status": "ok", "ingested": created, "blocked": blocked, "purged": purged, "queued": enqueued}
+    )
 
 
 @app.post("/simulate")
@@ -659,7 +736,24 @@ def simulate_attack():
                     db.session.flush()
 
                     for flow in flows:
-                        score, label = simulation_detector.predict(db.session, flow)
+                        pred = simulation_detector.predict(db.session, flow)
+                        if isinstance(pred, (list, tuple)) and len(pred) == 3:
+                            score, label, attack_label = pred
+                        else:
+                            score, label = pred
+                            attack_label = None
+                        base_labels = {"normal", "watch", "anomaly"}
+                        candidate_attack = None
+                        if label and label.lower() not in base_labels:
+                            candidate_attack = label
+                        elif attack_label and label and label.lower() != "normal":
+                            candidate_attack = attack_label
+                        extras = dict(flow.extra or {})
+                        if candidate_attack and candidate_attack.lower() not in base_labels:
+                            extras["attack_type"] = candidate_attack
+                        else:
+                            extras.pop("attack_type", None)
+                        flow.extra = extras
                         db.session.add(
                             Prediction(
                                 flow_id=flow.id,
@@ -698,8 +792,25 @@ def simulate_attack():
 
     scores: list[float] = []
     for flow in flows:
-        score, label = simulation_detector.predict(db.session, flow)
+        pred = simulation_detector.predict(db.session, flow)
+        if isinstance(pred, (list, tuple)) and len(pred) == 3:
+            score, label, attack_label = pred
+        else:
+            score, label = pred
+            attack_label = None
         scores.append(score)
+        base_labels = {"normal", "watch", "anomaly"}
+        candidate_attack = None
+        if label and label.lower() not in base_labels:
+            candidate_attack = label
+        elif attack_label and label and label.lower() != "normal":
+            candidate_attack = attack_label
+        extras = dict(flow.extra or {})
+        if candidate_attack and candidate_attack.lower() not in base_labels:
+            extras["attack_type"] = candidate_attack
+        else:
+            extras.pop("attack_type", None)
+        flow.extra = extras
         db.session.add(
             Prediction(
                 flow_id=flow.id,
@@ -834,6 +945,21 @@ def blocked_ips():
     rows = BlockedIP.query.filter_by(active=True).order_by(BlockedIP.created_at.desc()).all()
     payload = [{"ip": row.ip, "created_at": row.created_at.isoformat()} for row in rows]
     return jsonify(payload)
+
+
+@app.post("/unblock_ip")
+def unblock_ip():
+    payload = request.get_json(silent=True) or {}
+    ip = str(payload.get("ip") or "").strip()
+    if not ip:
+        return jsonify({"error": "ip is required"}), 400
+
+    record = BlockedIP.query.filter_by(ip=ip).first()
+    if record:
+        record.active = False
+        db.session.commit()
+    ok, msg = block_ip_os(ip, allow=True)
+    return jsonify({"status": "unblocked", "ip": ip, "os_action": "ok" if ok else "failed", "detail": msg})
 
 
 @app.route("/killswitch", methods=["GET", "POST"])
